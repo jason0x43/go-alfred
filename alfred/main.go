@@ -1,16 +1,15 @@
 package main
 
 import (
-	"github.com/jason0x43/go-log"
+	"log"
+
 	"github.com/jason0x43/go-alfred"
 )
 
 func main() {
-	log.Level = log.LEVEL_WARN
-	workflow, err := alfred.OpenWorkflow(".")
+	err := alfred.ShowMessage("Something", "Click me")
 	if err != nil {
-		log.Fatal("error opening workflow: %s", err)
+		log.Printf("Error showing message: %v", err)
 	}
-
-	log.Printf("cache dir: %s\n", workflow.CacheDir())
+	log.Printf("Showed message")
 }
