@@ -1,3 +1,5 @@
+// Package alfred provides an API and various utility methods for creating
+// Alfred workflows.
 package alfred
 
 import (
@@ -37,14 +39,19 @@ type Results struct {
 	items []Item
 }
 
-type Filter interface {
+type Command interface {
 	Keyword() string
+	IsEnabled() bool
+}
+
+type Filter interface {
+	Command
 	MenuItem() Item
 	Items(prefix, query string) ([]Item, error)
 }
 
 type Action interface {
-	Keyword() string
+	Command
 	Do(query string) (string, error)
 }
 
@@ -80,7 +87,8 @@ type XmlSubtitle struct {
 	Value string `xml:",chardata"`
 }
 
-func (w *Workflow) Run(filters []Filter, actions []Action) {
+// func (w *Workflow) Run(filters []Filter, actions []Action) {
+func (w *Workflow) Run(commands []Command) {
 	var op string
 	var kind string
 	var query string
@@ -108,16 +116,23 @@ func (w *Workflow) Run(filters []Filter, actions []Action) {
 	log.Printf("kind: '%s'", kind)
 	log.Printf("query: '%s'", query)
 
+	var active []Command
+	for _, c := range commands {
+		if c.IsEnabled() {
+			active = append(active, c)
+		}
+	}
+
 	switch op {
 	case "tell":
 		var err error
 		var items []Item
-		commands := findFilter(kind, filters)
+		filters := findFilter(kind, active)
 
-		if len(commands) > 0 {
+		if len(filters) > 0 {
 			var cmdItems []Item
-			for _, c := range commands {
-				cmdItems, err = c.Items(kind+" ", query)
+			for _, f := range filters {
+				cmdItems, err = f.Items(kind+" ", query)
 				if err == nil {
 					for _, i := range cmdItems {
 						items = append(items, i)
@@ -125,9 +140,10 @@ func (w *Workflow) Run(filters []Filter, actions []Action) {
 				}
 			}
 		} else {
-			for _, c := range filters {
-				if strings.HasPrefix(c.Keyword(), kind) {
-					item := c.MenuItem()
+			for _, f := range active {
+				filter, ok := f.(Filter)
+				if ok && strings.HasPrefix(f.Keyword(), kind) {
+					item := filter.MenuItem()
 					items = append(items, item)
 				}
 			}
@@ -142,12 +158,12 @@ func (w *Workflow) Run(filters []Filter, actions []Action) {
 
 	case "do":
 		var output string
-		command := findAction(kind, actions)
+		action := findAction(kind, active)
 
-		if command == nil {
+		if action == nil {
 			err = fmt.Errorf("Unknown command '%s'", kind)
 		} else {
-			output, err = command.Do(query)
+			output, err = action.Do(query)
 		}
 
 		if err != nil {
@@ -252,6 +268,7 @@ func FuzzyMatches(val string, test string) bool {
 }
 
 type Workflow struct {
+	name     string
 	bundleId string
 	cacheDir string
 	dataDir  string
@@ -265,6 +282,8 @@ func OpenWorkflow(workflowDir string, createDirs bool) (*Workflow, error) {
 
 	plData := pl.Root.(plist.Dict)
 	bundleId := plData["bundleid"].(string)
+	name := plData["name"].(string)
+
 	user, err := user.Current()
 	if err != nil {
 		return nil, err
@@ -286,6 +305,7 @@ func OpenWorkflow(workflowDir string, createDirs bool) (*Workflow, error) {
 	}
 
 	w := Workflow{
+		name:     name,
 		bundleId: bundleId,
 		cacheDir: cacheDir,
 		dataDir:  dataDir,
@@ -310,7 +330,7 @@ func (w *Workflow) BundleId() string {
 	return w.bundleId
 }
 
-func GetConfirmation(title string, prompt string, defaultYes bool) (bool, error) {
+func (w *Workflow) GetConfirmation(prompt string, defaultYes bool) (bool, error) {
 	script :=
 		`on run argv
 		  tell application "Alfred 2"
@@ -332,7 +352,7 @@ func GetConfirmation(title string, prompt string, defaultYes bool) (bool, error)
 	} else {
 		def = "No"
 	}
-	script = fmt.Sprintf(script, prompt, title, def)
+	script = fmt.Sprintf(script, prompt, w.name, def)
 	answer, err := RunScript(script)
 	if err != nil {
 		return false, err
@@ -345,7 +365,7 @@ func GetConfirmation(title string, prompt string, defaultYes bool) (bool, error)
 	}
 }
 
-func GetInput(title, prompt, defaultVal string, hideAnswer bool) (button, value string, err error) {
+func (w *Workflow) GetInput(prompt, defaultVal string, hideAnswer bool) (button, value string, err error) {
 	script :=
 		`on run argv
 		  tell application "Alfred 2"
@@ -367,12 +387,13 @@ func GetInput(title, prompt, defaultVal string, hideAnswer bool) (button, value 
 		hidden = "with hidden answer"
 	}
 
-	script = fmt.Sprintf(script, prompt, title, defaultVal, `"Cancel", "Ok"`, hidden)
+	script = fmt.Sprintf(script, prompt, w.name, defaultVal, `"Cancel", "Ok"`, hidden)
 	answer, err := RunScript(script)
 	if err != nil {
 		return button, value, err
 	}
 
+	answer = strings.TrimRight(answer, "\n")
 	parts := strings.SplitN(answer, "|", 2)
 
 	button = parts[0]
@@ -383,7 +404,7 @@ func GetInput(title, prompt, defaultVal string, hideAnswer bool) (button, value 
 	return button, value, err
 }
 
-func ShowMessage(title string, message string) error {
+func (w *Workflow) ShowMessage(message string) error {
 	script :=
 		`on run argv
 		  tell application "Alfred 2"
@@ -393,7 +414,7 @@ func ShowMessage(title string, message string) error {
 			  display dialog "%s" with title "%s" buttons {"Ok"} default button "Ok" with icon alfredIcon
 		  end tell
 		end run`
-	script = fmt.Sprintf(script, message, title)
+	script = fmt.Sprintf(script, message, w.name)
 	_, err := RunScript(script)
 	return err
 }
@@ -463,19 +484,21 @@ func (item *Item) fillSubtitles() {
 	}
 }
 
-func findFilter(name string, commands []Filter) (f []Filter) {
+func findFilter(name string, commands []Command) (f []Filter) {
 	for _, c := range commands {
-		if name == c.Keyword() {
-			f = append(f, c)
+		filter, ok := c.(Filter)
+		if ok && name == c.Keyword() {
+			f = append(f, filter)
 		}
 	}
 	return f
 }
 
-func findAction(name string, commands []Action) Action {
+func findAction(name string, commands []Command) Action {
 	for _, c := range commands {
-		if name == c.Keyword() {
-			return c
+		action, ok := c.(Action)
+		if ok && name == c.Keyword() {
+			return action
 		}
 	}
 	return nil
