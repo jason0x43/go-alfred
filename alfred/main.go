@@ -75,10 +75,18 @@ func main() {
 	}
 	workflowsPath = path.Join(prefsDir, "Alfred.alfredpreferences/workflows")
 
-	if stat, err := os.Stat("workflow"); os.IsNotExist(err) || !stat.IsDir() {
-		println("You're not in a workflow. A workflow must contain a",
-			"'"+buildDir+"'", "directory with an info.plist file.")
-		os.Exit(1)
+	dirExists := func(dir string) bool {
+		stat, err := os.Stat(dir)
+		return !os.IsNotExist(err) && stat.IsDir()
+	}
+
+	if !dirExists(path.Join("workflow")) {
+		os.Chdir("..")
+		if !dirExists("workflow") {
+			println("You're not in a workflow. A workflow must contain a",
+				"'"+buildDir+"'", "directory with an info.plist file.")
+			os.Exit(1)
+		}
 	}
 
 	if len(os.Args) == 1 {
