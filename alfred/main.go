@@ -68,12 +68,43 @@ var workflowPath string
 var workflowsPath string
 var buildDir = "workflow"
 
+type command struct {
+	Name string
+	Help string
+}
+
+var commands = []command{
+	command{"build", "build the workflow executable"},
+	command{"clean", "clean built files"},
+	command{"info", "display information about the current workflow"},
+	command{"link", "activate this workflow"},
+	command{"pack", "create a distributable package"},
+	command{"unlink", "deactivate this workflow"},
+}
+
 func main() {
 	prefsDir, err := getPrefsDirectory()
 	if err != nil {
 		die(err)
 	}
 	workflowsPath = path.Join(prefsDir, "Alfred.alfredpreferences/workflows")
+
+	if len(os.Args) == 1 {
+		println("usage:", os.Args[0], "<command>")
+		println()
+		println("command may be one of:")
+		for _, cmd := range commands {
+			fmt.Printf("    %-10s %s\n", cmd.Name, cmd.Help)
+		}
+		os.Exit(0)
+	}
+
+	if len(os.Args) == 2 && os.Args[1] == "-z" {
+		for _, cmd := range commands {
+			fmt.Printf("%s:%s\n", cmd.Name, cmd.Help)
+		}
+		os.Exit(0)
+	}
 
 	dirExists := func(dir string) bool {
 		stat, err := os.Stat(dir)
@@ -83,23 +114,9 @@ func main() {
 	if !dirExists(path.Join("workflow")) {
 		os.Chdir("..")
 		if !dirExists("workflow") {
-			println("You're not in a workflow. A workflow must contain a",
-				"'"+buildDir+"'", "directory with an info.plist file.")
+			println("You're not in a workflow.")
 			os.Exit(1)
 		}
-	}
-
-	if len(os.Args) == 1 {
-		println("usage:", os.Args[0], "<command>")
-		println()
-		println("command may be one of:")
-		println("    build   build the workflow executable")
-		println("    clean   clean built files")
-		println("    info    display information about the current workflow")
-		println("    link    activate this workflow")
-		println("    pack    create a distributable package")
-		println("    unlink  deactivate this workflow")
-		os.Exit(0)
 	}
 
 	workflowPath, _ = filepath.Abs(".")
