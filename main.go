@@ -23,10 +23,11 @@ import (
 //
 
 const (
-	LINE       = "––––––––––––––––––––––––––––––––––––––––––––––"
-	INVALID    = "no"
-	SEPARATOR  = " »"
-	TERMINATOR = "⁣"
+	Line       = "––––––––––––––––––––––––––––––––––––––––––––––"
+	Invalid    = "no"
+	Valid      = "yes"
+	Separator  = " »"
+	Terminator = "⁣"
 )
 
 const (
@@ -180,7 +181,7 @@ func (w *Workflow) Run(commands []Command) {
 }
 
 func SplitQuery(query string) []string {
-	return strings.Split(query, SEPARATOR)
+	return strings.Split(query, Separator)
 }
 
 func SplitAndTrimQuery(query string) []string {
