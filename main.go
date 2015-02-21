@@ -26,8 +26,8 @@ const (
 	Line       = "––––––––––––––––––––––––––––––––––––––––––––––"
 	Invalid    = "no"
 	Valid      = "yes"
-	Separator  = " »"
-	Terminator = "⁣"
+	Separator  = " \u00BB" // »
+	Terminator = "\u200C"  // zero width joiner
 )
 
 const (
