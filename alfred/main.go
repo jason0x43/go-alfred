@@ -198,6 +198,8 @@ func getPrefsDirectory() (string, error) {
 }
 
 func build() {
+	// use go generate, along with custom build tools, to handle any auxiliary build steps
+	run("go", "generate")
 	run("go", "build", "-ldflags=\"-w\"", "-o", "workflow/"+workflowName)
 }
 
