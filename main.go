@@ -222,14 +222,16 @@ func (w *Workflow) Run(commands []Command) {
 	}
 }
 
-func SplitQuery(query string) []string {
-	return strings.Split(query, Separator)
+// TrimAllLeft returns a copy of an array of strings in which space characters
+// are trimmed from the left side of each element in the array.
+func TrimAllLeft(parts []string) []string {
+	var n []string
+	for _, p := range parts {
+		n = append(n, strings.TrimLeft(p, " "))
+	}
+	return n
 }
 
-func SplitAndTrimQuery(query string) []string {
-	parts := SplitQuery(query)
-	for i, part := range parts {
-		parts[i] = strings.TrimSpace(part)
 	}
 	return parts
 }
@@ -241,11 +243,14 @@ func InsertItem(items []Item, item Item, index int) []Item {
 	return items
 }
 
+// SendToAlfred sends an array of items to Alfred. Currently this equates to
+// outputting an Alfred XML message on stdout.
 func SendToAlfred(items []Item) {
-	fmt.Println(ToXML(items))
+	fmt.Println(ToAlfredXML(items))
 }
 
-func ToXML(items []Item) string {
+// ToAlfredXML generates an Alfred XML message from an array of items.
+func ToAlfredXML(items []Item) string {
 	newxml := "<?xml version=\"1.0\"?><items>"
 
 	for _, item := range items {
