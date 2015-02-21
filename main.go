@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"encoding/xml"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -78,33 +79,61 @@ type XmlSubtitle struct {
 	Value string `xml:",chardata"`
 }
 
+type stringSet map[string]bool
+
+func (s stringSet) Set(value string) error {
+	s[value] = true
+	return nil
+}
+
+func (s *stringSet) String() string {
+	return fmt.Sprint(*s)
+}
+
 func (w *Workflow) Run(commands []Command) {
 	var op string
-	var kind string
+	var keyword string
+	var hideKeyword bool
+	var skip = stringSet{}
 	var query string
 	var err error
+	var prefix string
 
 	log.Printf("args: %#v\n", os.Args)
 
-	if len(os.Args) > 1 {
-		op = os.Args[1]
+	flag.BoolVar(&hideKeyword, "hide", false, "don't include the keword filter prefixes")
+	flag.Var(&skip, "skip", "list of keywords to skip")
+	flag.Parse()
+	args := flag.Args()
+
+	if len(args) > 0 {
+		op = args[0]
 	}
 
-	if len(os.Args) > 3 {
-		query = os.Args[3]
-		kind = os.Args[2]
-	} else if len(os.Args) > 2 {
-		parts := strings.SplitN(os.Args[2], " ", 2)
-		kind = parts[0]
+	if len(args) > 1 {
+		query = args[1]
+	}
 
+	if query != "" {
+		// take the first word of the query as the keyword
+		parts := strings.SplitN(query, " ", 2)
+		keyword = strings.TrimSpace(parts[0])
 		if len(parts) > 1 {
-			query = parts[1]
+			query = strings.TrimLeft(parts[1], " ")
+		} else {
+			query = ""
 		}
 	}
 
+	if !hideKeyword {
+		prefix = keyword + " "
+	}
+
 	log.Printf("op: '%s'", op)
-	log.Printf("kind: '%s'", kind)
+	log.Printf("keyword: '%s'", keyword)
 	log.Printf("query: '%s'", query)
+	log.Printf("prefix: '%s'", prefix)
+	log.Printf("skip: '%v'", skip)
 
 	var active []Command
 	for _, c := range commands {
@@ -117,12 +146,32 @@ func (w *Workflow) Run(commands []Command) {
 	case "tell":
 		var err error
 		var items []Item
-		filters := findFilter(kind, active)
+		var filters []Filter
+
+		// if we have any filters with an empty keyword, always try them
+		emptyFilters := findFilter("", active, stringSet{})
+		if len(emptyFilters) > 0 {
+			var cmdItems []Item
+			for _, f := range emptyFilters {
+				cmdItems, err = f.Items("", query)
+				if err == nil {
+					for _, i := range cmdItems {
+						items = append(items, i)
+					}
+				}
+			}
+		}
+
+		// only check for filters if we have a keyword; the emptyFilters bit above
+		// this has already taken care of an empty keyword
+		if keyword != "" {
+			filters = findFilter(keyword, active, skip)
+		}
 
 		if len(filters) > 0 {
 			var cmdItems []Item
 			for _, f := range filters {
-				cmdItems, err = f.Items(kind+" ", query)
+				cmdItems, err = f.Items(prefix, query)
 				if err == nil {
 					for _, i := range cmdItems {
 						items = append(items, i)
@@ -132,9 +181,11 @@ func (w *Workflow) Run(commands []Command) {
 		} else {
 			for _, f := range active {
 				filter, ok := f.(Filter)
-				if ok && strings.HasPrefix(f.Keyword(), kind) {
-					item := filter.MenuItem()
-					items = append(items, item)
+				if ok && f.Keyword() != "" && FuzzyMatches(f.Keyword(), keyword) {
+					if _, shouldSkip := skip[f.Keyword()]; !shouldSkip {
+						item := filter.MenuItem()
+						items = append(items, item)
+					}
 				}
 			}
 		}
@@ -142,16 +193,18 @@ func (w *Workflow) Run(commands []Command) {
 		if err != nil {
 			log.Printf("Error: %s", err)
 			items = append(items, Item{Title: fmt.Sprintf("Error: %s", err)})
+		} else if len(items) == 0 {
+			items = append(items, Item{Title: fmt.Sprintf("Invalid input: %s", query)})
 		}
 
 		SendToAlfred(items)
 
 	case "do":
 		var output string
-		action := findAction(kind, active)
+		action := findAction(keyword, active, skip)
 
 		if action == nil {
-			err = fmt.Errorf("Unknown command '%s'", kind)
+			err = fmt.Errorf("Unknown command '%s'", keyword)
 		} else {
 			output, err = action.Do(query)
 		}
@@ -474,22 +527,28 @@ func (item *Item) fillSubtitles() {
 	}
 }
 
-func findFilter(name string, commands []Command) (f []Filter) {
+func findFilter(name string, commands []Command, skip stringSet) (f []Filter) {
 	for _, c := range commands {
 		filter, ok := c.(Filter)
 		if ok && name == c.Keyword() {
-			f = append(f, filter)
+			log.Printf("checking " + name)
+			if _, shouldSkip := skip[name]; !shouldSkip {
+				f = append(f, filter)
+			}
 		}
 	}
 	return f
 }
 
-func findAction(name string, commands []Command) Action {
+func findAction(name string, commands []Command, skip stringSet) Action {
 	for _, c := range commands {
 		action, ok := c.(Action)
 		if ok && name == c.Keyword() {
-			return action
+			if _, shouldSkip := skip[name]; !shouldSkip {
+				return action
+			}
 		}
 	}
 	return nil
 }
+
