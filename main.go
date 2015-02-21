@@ -236,6 +236,7 @@ func TrimAllLeft(parts []string) []string {
 	return parts
 }
 
+// Insert an item at a specific index in an array of Items
 func InsertItem(items []Item, item Item, index int) []Item {
 	items = append(items, item)
 	copy(items[index+1:], items[index:])
@@ -315,6 +316,7 @@ func FuzzyMatches(val string, test string) bool {
 	return true
 }
 
+// Workflow represents an Alfred workflow.
 type Workflow struct {
 	name     string
 	bundleId string
@@ -366,19 +368,23 @@ func GetWorkflow() (*Workflow, error) {
 	return OpenWorkflow(".", true)
 }
 
+// CacheDir returns the cache directory for a workflow.
 func (w *Workflow) CacheDir() string {
 	return w.cacheDir
 }
 
+// DataDir returns the data directory for a workflow.
 func (w *Workflow) DataDir() string {
 	return w.dataDir
 }
 
+// BundleId returns a workflow's bundle ID.
 func (w *Workflow) BundleId() string {
 	return w.bundleId
 }
 
 func (w *Workflow) GetConfirmation(prompt string, defaultYes bool) (bool, error) {
+// GetConfirmation opens a confirmation dialog to ask the user to confirm something.
 	script :=
 		`on run argv
 		  tell application "Alfred 2"
@@ -413,6 +419,7 @@ func (w *Workflow) GetConfirmation(prompt string, defaultYes bool) (bool, error)
 	}
 }
 
+// GetInput opens an input dialog to ask the user for some information.
 func (w *Workflow) GetInput(prompt, defaultVal string, hideAnswer bool) (button, value string, err error) {
 	script :=
 		`on run argv
@@ -453,6 +460,7 @@ func (w *Workflow) GetInput(prompt, defaultVal string, hideAnswer bool) (button,
 }
 
 func (w *Workflow) ShowMessage(message string) error {
+// ShowMessage opens a message dialog to show the user a message.
 	script :=
 		`on run argv
 		  tell application "Alfred 2"
@@ -467,6 +475,7 @@ func (w *Workflow) ShowMessage(message string) error {
 	return err
 }
 
+// LoadJson reads a JSON file into a provided strucure.
 func LoadJson(filename string, structure interface{}) error {
 	data, err := ioutil.ReadFile(filename)
 	if err != nil {
@@ -477,6 +486,7 @@ func LoadJson(filename string, structure interface{}) error {
 	return dec.Decode(&structure)
 }
 
+// SaveJson serializes a given structure and saves it to a file.
 func SaveJson(filename string, structure interface{}) error {
 	data, _ := json.MarshalIndent(structure, "", "\t")
 	log.Println("Saving JSON to", filename)
@@ -487,22 +497,27 @@ func RunScript(script string) (string, error) {
 	cmd := exec.Command("osascript", "-")
 	cmd.Stdin = strings.NewReader(script)
 	output, err := cmd.CombinedOutput()
+// RunScript runs an arbitrary AppleScript.
 	if err != nil {
 		return "", err
 	}
 	return string(output), nil
 }
 
+// ByTitle is an array of Items which will be sorted by title.
 type ByTitle []Item
 
+// Len returns the length of a ByTitle array.
 func (b ByTitle) Len() int {
 	return len(b)
 }
 
+// Swap swaps two elements in a ByTitle array.
 func (b ByTitle) Swap(i, j int) {
 	b[i], b[j] = b[j], b[i]
 }
 
+// Less indicates whether one ByTitle element should come before another.
 func (b ByTitle) Less(i, j int) bool {
 	return b[i].Title < b[j].Title
 }
