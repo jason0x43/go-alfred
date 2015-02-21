@@ -316,25 +316,55 @@ func ToAlfredXML(items []Item) string {
 	return newxml
 }
 
+// FuzzyMatches returns true if val and test have a fuzzy match score != -1
 func FuzzyMatches(val string, test string) bool {
+	return FuzzyScore(val, test) >= 0
+}
+
+// FuzzyScore gives a score for how well the test script fuzzy matches a
+// given value. To match, the test string must be equal to, or its characters
+// must be an ordered subset of, the characters in the val string. A score of 0
+// is a perfect match. Higher scores are lower quality matches. A score < 0
+// indicates no match.
+func FuzzyScore(val string, test string) float64 {
 	if test == "" {
-		return true
+		return 0
 	}
 
 	lval := strings.ToLower(val)
 	ltest := strings.ToLower(test)
 
-	words := strings.Split(ltest, " ")
-	lastIndex := 0
-	for _, word := range words {
-		wi := strings.Index(lval, word)
-		if wi < lastIndex {
-			return false
-		}
-		lastIndex = wi
+	// score -- earlier, closer (average character distance), and higher
+	// match-to- ratio == better score
+
+	start := strings.IndexRune(lval, rune(ltest[0]))
+	if start == -1 {
+		return -1.0
 	}
 
-	return true
+	// 10% of base score is distance through word that first match occured
+	score := 0.10 * float64(start)
+
+	totalSep := 0
+	i := 0
+
+	for _, c := range ltest[1:] {
+		if i = strings.IndexRune(lval[start+1:], c); i == -1 {
+			return -1
+		}
+		totalSep += i
+		start += i
+	}
+
+	// 60% of score is average distance between matching characters
+	score += 0.6 * (float64(totalSep) / float64(len(test)))
+
+	// 30% of score is percentage of characters not matched
+	score += 0.3 * (float64(len(val)-len(test)) / float64(len(val)))
+
+	log.Printf("score for %s vs %s: %v", val, test, score)
+
+	return score
 }
 
 // Workflow represents an Alfred workflow.
@@ -593,3 +623,31 @@ func findAction(name string, commands []Command, skip stringSet) Action {
 	return nil
 }
 
+type sortItem struct {
+	item    *Item
+	score   float64
+	scored  bool
+	keyword string
+}
+
+type byFuzzyScore []sortItem
+
+func (b byFuzzyScore) Len() int {
+	return len(b)
+}
+
+func (b byFuzzyScore) Swap(i, j int) {
+	b[i], b[j] = b[j], b[i]
+}
+
+func (b byFuzzyScore) Less(i, j int) bool {
+	if !b[i].scored {
+		b[i].score = FuzzyScore(b[i].item.Title, b[i].keyword)
+		b[i].scored = true
+	}
+	if !b[j].scored {
+		b[j].score = FuzzyScore(b[j].item.Title, b[j].keyword)
+		b[j].scored = true
+	}
+	return b[i].score < b[j].score
+}
