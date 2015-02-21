@@ -393,7 +393,9 @@ type Workflow struct {
 	dataDir  string
 }
 
-func OpenWorkflow(workflowDir string, createDirs bool) (*Workflow, error) {
+// OpenWorkflow returns a Workflow for a given directory. If the createDirs
+// option is true, cache and data directories will be created for the workflow.
+func OpenWorkflow(workflowDir string, createDirs bool) (w Workflow, err error) {
 	pl, err := plist.UnmarshalFile("info.plist")
 	if err != nil {
 		log.Println("alfred: Error opening plist:", err)
@@ -403,38 +405,31 @@ func OpenWorkflow(workflowDir string, createDirs bool) (*Workflow, error) {
 	bundleId := plData["bundleid"].(string)
 	name := plData["name"].(string)
 
-	user, err := user.Current()
-	if err != nil {
-		return nil, err
+	var u *user.User
+	if u, err = user.Current(); err != nil {
+		return
 	}
 
-	cacheDir := path.Join(user.HomeDir, "Library", "Caches", "com.runningwithcrayons.Alfred-2", "Workflow Data", bundleId)
-	dataDir := path.Join(user.HomeDir, "Library", "Application Support", "Alfred 2", "Workflow Data", bundleId)
+	cacheDir := path.Join(u.HomeDir, "Library", "Caches", "com.runningwithcrayons.Alfred-2", "Workflow Data", bundleId)
+	dataDir := path.Join(u.HomeDir, "Library", "Application Support", "Alfred 2", "Workflow Data", bundleId)
 
 	if createDirs {
-		err := os.MkdirAll(cacheDir, 0755)
-		if err != nil {
-			return nil, err
+		if err = os.MkdirAll(cacheDir, 0755); err != nil {
+			return
 		}
-
-		err = os.MkdirAll(dataDir, 0755)
-		if err != nil {
-			return nil, err
+		if err = os.MkdirAll(dataDir, 0755); err != nil {
+			return
 		}
 	}
 
-	w := Workflow{
+	w = Workflow{
 		name:     name,
 		bundleId: bundleId,
 		cacheDir: cacheDir,
 		dataDir:  dataDir,
 	}
 
-	return &w, nil
-}
-
-func GetWorkflow() (*Workflow, error) {
-	return OpenWorkflow(".", true)
+	return
 }
 
 // CacheDir returns the cache directory for a workflow.
