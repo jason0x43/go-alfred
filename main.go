@@ -233,8 +233,14 @@ func TrimAllLeft(parts []string) []string {
 	return n
 }
 
+// Create a new Item representing a keyword
+func NewKeywordItem(keyword, prefix, suffix, desc string) Item {
+	return Item{
+		Title:        keyword,
+		Autocomplete: prefix + keyword + suffix,
+		Valid:        Invalid,
+		SubtitleAll:  desc,
 	}
-	return parts
 }
 
 // Insert an item at a specific index in an array of Items
@@ -243,6 +249,18 @@ func InsertItem(items []Item, item Item, index int) []Item {
 	copy(items[index+1:], items[index:])
 	items[index] = item
 	return items
+}
+
+// Modify an Item to represent a selectable choice.
+func MakeChoice(item Item, selected bool) Item {
+	if selected {
+		// ballot box with check
+		item.Title = "\u2611 " + item.Title
+	} else {
+		// ballot box
+		item.Title = "\u2610 " + item.Title
+	}
+	return item
 }
 
 // Sort an array of items based how well they match a given keyword.
