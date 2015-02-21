@@ -14,6 +14,7 @@ import (
 	"os/exec"
 	"os/user"
 	"path"
+	"sort"
 	"strings"
 
 	"github.com/jason0x43/go-plist"
@@ -242,6 +243,26 @@ func InsertItem(items []Item, item Item, index int) []Item {
 	copy(items[index+1:], items[index:])
 	items[index] = item
 	return items
+}
+
+// Sort an array of items based how well they match a given keyword.
+func SortItemsForKeyword(items []Item, keyword string) []Item {
+	var sortItems []sortItem
+	for i, _ := range items {
+		sortItems = append(sortItems, sortItem{
+			item:    &items[i],
+			keyword: keyword,
+		})
+	}
+
+	sort.Stable(byFuzzyScore(sortItems))
+
+	var sorted []Item
+	for _, si := range sortItems {
+		sorted = append(sorted, *si.item)
+	}
+
+	return sorted
 }
 
 // SendToAlfred sends an array of items to Alfred. Currently this equates to
