@@ -447,8 +447,8 @@ func (w *Workflow) BundleId() string {
 	return w.bundleId
 }
 
-func (w *Workflow) GetConfirmation(prompt string, defaultYes bool) (bool, error) {
 // GetConfirmation opens a confirmation dialog to ask the user to confirm something.
+func (w *Workflow) GetConfirmation(prompt string, defaultYes bool) (confirmed bool, err error) {
 	script :=
 		`on run argv
 		  tell application "Alfred 2"
@@ -464,23 +464,23 @@ func (w *Workflow) GetConfirmation(prompt string, defaultYes bool) (bool, error)
 			  end
 		  end tell
 		end run`
+
 	var def string
 	if defaultYes {
 		def = "Yes"
 	} else {
 		def = "No"
 	}
+
 	script = fmt.Sprintf(script, prompt, w.name, def)
-	answer, err := RunScript(script)
+	var answer string
+	answer, err = RunScript(script)
 	if err != nil {
-		return false, err
+		return
 	}
 
-	if strings.TrimSpace(answer) == "Yes" {
-		return true, nil
-	} else {
-		return false, nil
-	}
+	confirmed = strings.TrimSpace(answer) == "Yes"
+	return
 }
 
 // GetInput opens an input dialog to ask the user for some information.
@@ -507,24 +507,24 @@ func (w *Workflow) GetInput(prompt, defaultVal string, hideAnswer bool) (button,
 	}
 
 	script = fmt.Sprintf(script, prompt, w.name, defaultVal, `"Cancel", "Ok"`, hidden)
-	answer, err := RunScript(script)
+	value, err = RunScript(script)
 	if err != nil {
-		return button, value, err
+		return
 	}
 
-	answer = strings.TrimRight(answer, "\n")
-	parts := strings.SplitN(answer, "|", 2)
+	value = strings.TrimRight(value, "\n")
+	parts := strings.SplitN(value, "|", 2)
 
 	button = parts[0]
 	if len(parts) > 1 {
 		value = parts[1]
 	}
 
-	return button, value, err
+	return
 }
 
-func (w *Workflow) ShowMessage(message string) error {
 // ShowMessage opens a message dialog to show the user a message.
+func (w *Workflow) ShowMessage(message string) (err error) {
 	script :=
 		`on run argv
 		  tell application "Alfred 2"
@@ -535,8 +535,8 @@ func (w *Workflow) ShowMessage(message string) error {
 		  end tell
 		end run`
 	script = fmt.Sprintf(script, message, w.name)
-	_, err := RunScript(script)
-	return err
+	_, err = RunScript(script)
+	return
 }
 
 // LoadJson reads a JSON file into a provided strucure.
@@ -557,15 +557,15 @@ func SaveJson(filename string, structure interface{}) error {
 	return ioutil.WriteFile(filename, data, 0600)
 }
 
-func RunScript(script string) (string, error) {
-	cmd := exec.Command("osascript", "-")
-	cmd.Stdin = strings.NewReader(script)
-	output, err := cmd.CombinedOutput()
 // RunScript runs an arbitrary AppleScript.
+func RunScript(script string) (out string, err error) {
+	var raw []byte
+	raw, err = exec.Command("osascript", "-e", script).CombinedOutput()
 	if err != nil {
-		return "", err
+		return
 	}
-	return string(output), nil
+	out = string(raw)
+	return
 }
 
 // ByTitle is an array of Items which will be sorted by title.
