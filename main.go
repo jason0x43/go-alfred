@@ -30,16 +30,6 @@ const (
 	Terminator = "\u200C"  // zero width joiner
 )
 
-const (
-	FILTER_MENU = 0x01
-)
-
-var MaxResults = 9
-
-type Results struct {
-	items []Item
-}
-
 type Command interface {
 	Keyword() string
 	IsEnabled() bool
@@ -88,7 +78,6 @@ type XmlSubtitle struct {
 	Value string `xml:",chardata"`
 }
 
-// func (w *Workflow) Run(filters []Filter, actions []Action) {
 func (w *Workflow) Run(commands []Command) {
 	var op string
 	var kind string
