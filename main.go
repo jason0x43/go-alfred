@@ -14,6 +14,7 @@ import (
 	"os/exec"
 	"os/user"
 	"path"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -450,90 +451,70 @@ func (w *Workflow) BundleId() string {
 // GetConfirmation opens a confirmation dialog to ask the user to confirm something.
 func (w *Workflow) GetConfirmation(prompt string, defaultYes bool) (confirmed bool, err error) {
 	script :=
-		`on run argv
-		  tell application "Alfred 2"
+		`tell application "Alfred 2"
 			  activate
 			  set alfredPath to (path to application "Alfred 2")
 			  set alfredIcon to path to resource "appicon.icns" in bundle (alfredPath as alias)
+			  display dialog "%s" with title "%s" buttons {"Yes", "No"} default button "%s" with icon alfredIcon
+		  end tell`
 
-			  try
-				display dialog "%s" with title "%s" buttons {"Yes", "No"} default button "%s" with icon alfredIcon
-				set answer to (button returned of result)
-			  on error number -128
-				set answer to "No"
-			  end
-		  end tell
-		end run`
-
-	var def string
+	def := "No"
 	if defaultYes {
 		def = "Yes"
-	} else {
-		def = "No"
 	}
 
 	script = fmt.Sprintf(script, prompt, w.name, def)
-	var answer string
-	answer, err = RunScript(script)
+	var response string
+	response, err = RunScript(script)
 	if err != nil {
 		return
 	}
 
-	confirmed = strings.TrimSpace(answer) == "Yes"
-	return
+	button, _ := parseDialogResponse(response)
+	return button == "Yes", nil
 }
 
 // GetInput opens an input dialog to ask the user for some information.
 func (w *Workflow) GetInput(prompt, defaultVal string, hideAnswer bool) (button, value string, err error) {
 	script :=
-		`on run argv
-		  tell application "Alfred 2"
+		`tell application "Alfred 2"
 			  activate
 			  set alfredPath to (path to application "Alfred 2")
 			  set alfredIcon to path to resource "appicon.icns" in bundle (alfredPath as alias)
-
-			  try
-				display dialog "%s:" with title "%s" default answer "%s" buttons {%s} default button "Ok" with icon alfredIcon %s
-				set answer to (button returned of result) & "|" & (text returned of result)
-			  on error number -128
-				set answer to "Cancel|"
-			  end
-		  end tell
-		end run`
+			  display dialog "%s:" with title "%s" default answer "%s" buttons {"Cancel", "Ok"} default button "Ok" with icon alfredIcon%s
+		  end tell`
 
 	var hidden string
 	if hideAnswer {
-		hidden = "with hidden answer"
+		hidden = " with hidden answer"
 	}
 
-	script = fmt.Sprintf(script, prompt, w.name, defaultVal, `"Cancel", "Ok"`, hidden)
-	value, err = RunScript(script)
+	script = fmt.Sprintf(script, prompt, w.name, defaultVal, hidden)
+	log.Printf("running script:")
+	log.Println(script)
+	var response string
+	response, err = RunScript(script)
 	if err != nil {
+		if strings.Contains(response, "User canceled") {
+			log.Printf("User canceled")
+			return "Cancel", "", nil
+		}
 		return
 	}
 
-	value = strings.TrimRight(value, "\n")
-	parts := strings.SplitN(value, "|", 2)
-
-	button = parts[0]
-	if len(parts) > 1 {
-		value = parts[1]
-	}
-
+	button, value = parseDialogResponse(response)
 	return
 }
 
 // ShowMessage opens a message dialog to show the user a message.
 func (w *Workflow) ShowMessage(message string) (err error) {
 	script :=
-		`on run argv
-		  tell application "Alfred 2"
+		`tell application "Alfred 2"
 			  activate
 			  set alfredPath to (path to application "Alfred 2")
 			  set alfredIcon to path to resource "appicon.icns" in bundle (alfredPath as alias)
 			  display dialog "%s" with title "%s" buttons {"Ok"} default button "Ok" with icon alfredIcon
-		  end tell
-		end run`
+		  end tell`
 	script = fmt.Sprintf(script, message, w.name)
 	_, err = RunScript(script)
 	return
@@ -558,14 +539,9 @@ func SaveJson(filename string, structure interface{}) error {
 }
 
 // RunScript runs an arbitrary AppleScript.
-func RunScript(script string) (out string, err error) {
-	var raw []byte
-	raw, err = exec.Command("osascript", "-e", script).CombinedOutput()
-	if err != nil {
-		return
-	}
-	out = string(raw)
-	return
+func RunScript(script string) (string, error) {
+	raw, err := exec.Command("osascript", "-e", script).CombinedOutput()
+	return strings.TrimRight(string(raw), "\n"), err
 }
 
 // ByTitle is an array of Items which will be sorted by title.
@@ -589,6 +565,16 @@ func (b ByTitle) Less(i, j int) bool {
 //
 // Internal
 //
+
+func parseDialogResponse(response string) (button string, text string) {
+	var parser = regexp.MustCompile(`{button returned: "(\w)"(?:, text returned: "(.*))?"}`)
+	parts := parser.FindStringSubmatch(response)
+	if parts != nil {
+		button = parts[1]
+		text = parts[2]
+	}
+	return
+}
 
 var cacheRoot string
 var dataRoot string
