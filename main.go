@@ -490,10 +490,9 @@ func (w *Workflow) GetInput(prompt, defaultVal string, hideAnswer bool) (button,
 	}
 
 	script = fmt.Sprintf(script, prompt, w.name, defaultVal, hidden)
-	log.Printf("running script:")
-	log.Println(script)
 	var response string
 	response, err = RunScript(script)
+	log.Printf("got response: '%s'", response)
 	if err != nil {
 		if strings.Contains(response, "User canceled") {
 			log.Printf("User canceled")
@@ -540,7 +539,7 @@ func SaveJson(filename string, structure interface{}) error {
 
 // RunScript runs an arbitrary AppleScript.
 func RunScript(script string) (string, error) {
-	raw, err := exec.Command("osascript", "-e", script).CombinedOutput()
+	raw, err := exec.Command("osascript", "-s", "s", "-e", script).CombinedOutput()
 	return strings.TrimRight(string(raw), "\n"), err
 }
 
@@ -567,12 +566,13 @@ func (b ByTitle) Less(i, j int) bool {
 //
 
 func parseDialogResponse(response string) (button string, text string) {
-	var parser = regexp.MustCompile(`{button returned: "(\w)"(?:, text returned: "(.*))?"}`)
+	var parser = regexp.MustCompile(`{button returned:"(\w*)"(?:, text returned:"(.*)")?}`)
 	parts := parser.FindStringSubmatch(response)
 	if parts != nil {
 		button = parts[1]
-		text = parts[2]
+		text = strings.Replace(parts[2], `\"`, `"`, -1)
 	}
+	log.Printf(`Parsed response: button=%s, text=%s`, button, text)
 	return
 }
 
