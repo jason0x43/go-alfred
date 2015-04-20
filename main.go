@@ -190,6 +190,7 @@ func (w *Workflow) Run(commands []Command) {
 					}
 				}
 			}
+			items = SortItemsForKeyword(items, keyword)
 		}
 
 		if err != nil {
@@ -361,8 +362,8 @@ func FuzzyScore(val string, test string) float64 {
 		return -1.0
 	}
 
-	// 10% of base score is distance through word that first match occured
-	score := 0.10 * float64(start)
+	// 20% of base score is distance through word that first match occured
+	score := 0.20 * float64(start)
 
 	totalSep := 0
 	i := 0
@@ -375,11 +376,11 @@ func FuzzyScore(val string, test string) float64 {
 		start += i
 	}
 
-	// 60% of score is average distance between matching characters
-	score += 0.6 * (float64(totalSep) / float64(len(test)))
+	// 50% of score is average distance between matching characters
+	score += 0.5 * (float64(totalSep) / float64(len(test)))
 
-	// 30% of score is percentage of characters not matched
-	score += 0.3 * (float64(len(val)-len(test)) / float64(len(val)))
+	// 20% of score is percentage of characters not matched
+	score += 0.2 * (float64(len(val)-len(test)) / float64(len(val)))
 
 	log.Printf("score for %s vs %s: %v", val, test, score)
 
