@@ -26,57 +26,68 @@ import (
 //
 
 const (
-	Line       = "––––––––––––––––––––––––––––––––––––––––––––––"
-	Invalid    = "no"
-	Valid      = "yes"
-	Separator  = " \u00BB" // »
-	Terminator = "\u200C"  // zero width joiner
+	// Line is an underline
+	Line = "––––––––––––––––––––––––––––––––––––––––––––––"
+	// Invalid flags an invalid item
+	Invalid = "no"
+	// Valid flags a valid (actionable) item
+	Valid = "yes"
+	// Separator separates query items/fields
+	Separator = " \u00BB" // »
+	// Terminator invisibly terminates a query
+	Terminator = "\u200C" // zero width joiner
 )
 
+// Command is a Filter or Action
 type Command interface {
 	Keyword() string
 	IsEnabled() bool
 }
 
+// Filter is a script filter
 type Filter interface {
 	Command
 	MenuItem() Item
 	Items(prefix, query string) ([]Item, error)
 }
 
+// Action is an action a workflow can perform
 type Action interface {
 	Command
 	Do(query string) (string, error)
 }
 
+// Item is an item in an Alfred response
 type Item struct {
-	Uid           string
-	Arg           string
-	Title         string
-	Subtitle      string
-	SubtitleAll   string
-	SubtitleShift string
-	SubtitleAlt   string
-	SubtitleCmd   string
-	SubtitleCtrl  string
-	SubtitleFn    string
-	Icon          string
-	Valid         string
-	Autocomplete  string
+	UID           string // UID
+	Arg           string // Arg
+	Title         string // Title
+	Subtitle      string // Subtitle
+	SubtitleAll   string // SubtitleAll
+	SubtitleShift string // SubtitleShift
+	SubtitleAlt   string // SubtitleAlt
+	SubtitleCmd   string // SubtitleCmd
+	SubtitleCtrl  string // SubtitleCtrl
+	SubtitleFn    string // SubtitleFn
+	Icon          string // Icon
+	Valid         string // Valid
+	Autocomplete  string // Autocomplete
 }
 
-type XmlItem struct {
+// XMLItem is the XML representation of an Alfred item
+type XMLItem struct {
 	XMLName      xml.Name      `xml:"item"`
-	Uid          string        `xml:"uid,attr,omitempty"`
+	UID          string        `xml:"uid,attr,omitempty"`
 	Title        string        `xml:"title"`
-	Subtitles    []XmlSubtitle `xml:"subtitle,omitempty"`
+	Subtitles    []XMLSubtitle `xml:"subtitle,omitempty"`
 	Icon         string        `xml:"icon,omitempty"`
 	Arg          string        `xml:"arg,attr,omitempty"`
 	Valid        string        `xml:"valid,attr,omitempty"`
 	Autocomplete string        `xml:"autocomplete,attr,omitempty"`
 }
 
-type XmlSubtitle struct {
+// XMLSubtitle represents an item subtitle
+type XMLSubtitle struct {
 	Mod   string `xml:"mod,attr,omitempty"`
 	Value string `xml:",chardata"`
 }
@@ -92,6 +103,7 @@ func (s *stringSet) String() string {
 	return fmt.Sprint(*s)
 }
 
+// Run runs a workflow.
 func (w *Workflow) Run(commands []Command) {
 	var op string
 	var keyword string
@@ -103,7 +115,7 @@ func (w *Workflow) Run(commands []Command) {
 
 	log.Printf("args: %#v\n", os.Args)
 
-	flag.BoolVar(&hideKeyword, "hide", false, "don't include the keword filter prefixes")
+	flag.BoolVar(&hideKeyword, "hide", false, "don't include the keyword filter prefixes")
 	flag.Var(&skip, "skip", "list of keywords to skip")
 	flag.Parse()
 	args := flag.Args()
@@ -113,7 +125,7 @@ func (w *Workflow) Run(commands []Command) {
 	}
 
 	if len(args) > 1 {
-		query = args[1]
+		query = strings.Join(args[1:], " ")
 	}
 
 	if query != "" {
@@ -235,7 +247,7 @@ func TrimAllLeft(parts []string) []string {
 	return n
 }
 
-// Create a new Item representing a keyword
+// NewKeywordItem creates a new Item representing a keyword.
 func NewKeywordItem(keyword, prefix, suffix, desc string) Item {
 	return Item{
 		Title:        keyword,
@@ -245,7 +257,7 @@ func NewKeywordItem(keyword, prefix, suffix, desc string) Item {
 	}
 }
 
-// Insert an item at a specific index in an array of Items
+// InsertItem inserts an item at a specific index in an array of Items.
 func InsertItem(items []Item, item Item, index int) []Item {
 	items = append(items, item)
 	copy(items[index+1:], items[index:])
@@ -253,7 +265,7 @@ func InsertItem(items []Item, item Item, index int) []Item {
 	return items
 }
 
-// Modify an Item to represent a selectable choice.
+// MakeChoice modifies an Item to represent a selectable choice.
 func MakeChoice(item Item, selected bool) Item {
 	if selected {
 		// ballot box with check
@@ -265,10 +277,12 @@ func MakeChoice(item Item, selected bool) Item {
 	return item
 }
 
-// Sort an array of items based how well they match a given keyword.
-func SortItemsForKeyword(items []Item, keyword string) []Item {
+// SortItemsForKeyword sorts an array of items based how well they match a
+// given keyword.
+func SortItemsForKeyword(items []Item, keyword string) (sorted []Item) {
+	log.Printf("sorting by keyword: %s", keyword)
 	var sortItems []sortItem
-	for i, _ := range items {
+	for i := range items {
 		sortItems = append(sortItems, sortItem{
 			item:    &items[i],
 			keyword: keyword,
@@ -277,12 +291,11 @@ func SortItemsForKeyword(items []Item, keyword string) []Item {
 
 	sort.Stable(byFuzzyScore(sortItems))
 
-	var sorted []Item
 	for _, si := range sortItems {
 		sorted = append(sorted, *si.item)
 	}
 
-	return sorted
+	return
 }
 
 // SendToAlfred sends an array of items to Alfred. Currently this equates to
@@ -296,8 +309,8 @@ func ToAlfredXML(items []Item) string {
 	newxml := "<?xml version=\"1.0\"?><items>"
 
 	for _, item := range items {
-		xmlItem := XmlItem{
-			Uid:          item.Uid,
+		xmlItem := XMLItem{
+			UID:          item.UID,
 			Arg:          item.Arg,
 			Title:        item.Title,
 			Icon:         item.Icon,
@@ -314,7 +327,7 @@ func ToAlfredXML(items []Item) string {
 
 		addSubtitle := func(subtitle, mod string) {
 			if st := getSubtitle(subtitle); st != "" {
-				xmlItem.Subtitles = append(xmlItem.Subtitles, XmlSubtitle{mod, st})
+				xmlItem.Subtitles = append(xmlItem.Subtitles, XMLSubtitle{mod, st})
 			}
 		}
 
@@ -390,7 +403,7 @@ func FuzzyScore(val string, test string) float64 {
 // Workflow represents an Alfred workflow.
 type Workflow struct {
 	name     string
-	bundleId string
+	bundleID string
 	cacheDir string
 	dataDir  string
 }
@@ -400,11 +413,11 @@ type Workflow struct {
 func OpenWorkflow(workflowDir string, createDirs bool) (w Workflow, err error) {
 	pl, err := plist.UnmarshalFile("info.plist")
 	if err != nil {
-		log.Println("alfred: Error opening plist:", err)
+		log.Fatal("alfred: Error opening plist:", err)
 	}
 
 	plData := pl.Root.(plist.Dict)
-	bundleId := plData["bundleid"].(string)
+	bundleID := plData["bundleid"].(string)
 	name := plData["name"].(string)
 
 	var u *user.User
@@ -412,8 +425,8 @@ func OpenWorkflow(workflowDir string, createDirs bool) (w Workflow, err error) {
 		return
 	}
 
-	cacheDir := path.Join(u.HomeDir, "Library", "Caches", "com.runningwithcrayons.Alfred-2", "Workflow Data", bundleId)
-	dataDir := path.Join(u.HomeDir, "Library", "Application Support", "Alfred 2", "Workflow Data", bundleId)
+	cacheDir := path.Join(u.HomeDir, "Library", "Caches", "com.runningwithcrayons.Alfred-2", "Workflow Data", bundleID)
+	dataDir := path.Join(u.HomeDir, "Library", "Application Support", "Alfred 2", "Workflow Data", bundleID)
 
 	if createDirs {
 		if err = os.MkdirAll(cacheDir, 0755); err != nil {
@@ -426,7 +439,7 @@ func OpenWorkflow(workflowDir string, createDirs bool) (w Workflow, err error) {
 
 	w = Workflow{
 		name:     name,
-		bundleId: bundleId,
+		bundleID: bundleID,
 		cacheDir: cacheDir,
 		dataDir:  dataDir,
 	}
@@ -444,9 +457,9 @@ func (w *Workflow) DataDir() string {
 	return w.dataDir
 }
 
-// BundleId returns a workflow's bundle ID.
-func (w *Workflow) BundleId() string {
-	return w.bundleId
+// BundleID returns a workflow's bundle ID.
+func (w *Workflow) BundleID() string {
+	return w.bundleID
 }
 
 // GetConfirmation opens a confirmation dialog to ask the user to confirm something.
@@ -520,8 +533,8 @@ func (w *Workflow) ShowMessage(message string) (err error) {
 	return
 }
 
-// LoadJson reads a JSON file into a provided strucure.
-func LoadJson(filename string, structure interface{}) error {
+// LoadJSON reads a JSON file into a provided strucure.
+func LoadJSON(filename string, structure interface{}) error {
 	data, err := ioutil.ReadFile(filename)
 	if err != nil {
 		return err
@@ -531,8 +544,8 @@ func LoadJson(filename string, structure interface{}) error {
 	return dec.Decode(&structure)
 }
 
-// SaveJson serializes a given structure and saves it to a file.
-func SaveJson(filename string, structure interface{}) error {
+// SaveJSON serializes a given structure and saves it to a file.
+func SaveJSON(filename string, structure interface{}) error {
 	data, _ := json.MarshalIndent(structure, "", "\t")
 	log.Println("Saving JSON to", filename)
 	return ioutil.WriteFile(filename, data, 0600)
