@@ -9,7 +9,7 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
-	"log"
+	_log "log"
 	"os"
 	"os/exec"
 	"os/user"
@@ -20,6 +20,8 @@ import (
 
 	"github.com/jason0x43/go-plist"
 )
+
+var log = _log.New(os.Stderr, "[alfred] ", _log.LstdFlags)
 
 //
 // Public API
@@ -209,7 +211,7 @@ func (w *Workflow) Run(commands []Command) {
 			log.Printf("Error: %s", err)
 			items = append(items, Item{Title: fmt.Sprintf("Error: %s", err)})
 		} else if len(items) == 0 {
-			items = append(items, Item{Title: fmt.Sprintf("Invalid input: %s", query)})
+			items = append(items, Item{Title: fmt.Sprintf("No results")})
 		}
 
 		SendToAlfred(items)
@@ -547,7 +549,7 @@ func LoadJSON(filename string, structure interface{}) error {
 // SaveJSON serializes a given structure and saves it to a file.
 func SaveJSON(filename string, structure interface{}) error {
 	data, _ := json.MarshalIndent(structure, "", "\t")
-	log.Println("Saving JSON to", filename)
+	log.Printf("Saving JSON to", filename)
 	return ioutil.WriteFile(filename, data, 0600)
 }
 
