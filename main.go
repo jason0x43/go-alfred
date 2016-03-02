@@ -376,6 +376,7 @@ func FuzzyScore(val string, test string) float64 {
 	if start == -1 {
 		return -1.0
 	}
+	start++
 
 	// 20% of base score is distance through word that first match occured
 	score := 0.20 * float64(start)
@@ -384,11 +385,11 @@ func FuzzyScore(val string, test string) float64 {
 	i := 0
 
 	for _, c := range ltest[1:] {
-		if i = strings.IndexRune(lval[start+1:], c); i == -1 {
+		if i = strings.IndexRune(lval[start:], c); i == -1 {
 			return -1
 		}
 		totalSep += i
-		start += i
+		start += i + 1
 	}
 
 	// 50% of score is average distance between matching characters
