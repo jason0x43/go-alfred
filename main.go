@@ -17,6 +17,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"text/template"
 
 	"github.com/jason0x43/go-plist"
 )
@@ -411,6 +412,27 @@ type Workflow struct {
 	dataDir  string
 }
 
+// GetAlfredVersion returns the highest installed version of Alfred. It uses a very naive algorithm.
+func GetAlfredVersion() string {
+	files, _ := ioutil.ReadDir("/Applications")
+	name := ""
+	for _, file := range files {
+		fname := file.Name()
+		if strings.HasPrefix(fname, "Alfred ") && fname > name {
+			name = fname
+			break
+		}
+	}
+	if name != "" {
+		name = strings.TrimSuffix(name, ".app")
+		parts := strings.Split(name, " ")
+		if len(parts) == 2 {
+			return parts[1]
+		}
+	}
+	return ""
+}
+
 // OpenWorkflow returns a Workflow for a given directory. If the createDirs
 // option is true, cache and data directories will be created for the workflow.
 func OpenWorkflow(workflowDir string, createDirs bool) (w Workflow, err error) {
@@ -422,14 +444,15 @@ func OpenWorkflow(workflowDir string, createDirs bool) (w Workflow, err error) {
 	plData := pl.Root.(plist.Dict)
 	bundleID := plData["bundleid"].(string)
 	name := plData["name"].(string)
+	version := GetAlfredVersion()
 
 	var u *user.User
 	if u, err = user.Current(); err != nil {
 		return
 	}
 
-	cacheDir := path.Join(u.HomeDir, "Library", "Caches", "com.runningwithcrayons.Alfred-2", "Workflow Data", bundleID)
-	dataDir := path.Join(u.HomeDir, "Library", "Application Support", "Alfred 2", "Workflow Data", bundleID)
+	cacheDir := path.Join(u.HomeDir, "Library", "Caches", "com.runningwithcrayons.Alfred-"+version, "Workflow Data", bundleID)
+	dataDir := path.Join(u.HomeDir, "Library", "Application Support", "Alfred "+version, "Workflow Data", bundleID)
 
 	if createDirs {
 		if err = os.MkdirAll(cacheDir, 0755); err != nil {
@@ -467,20 +490,40 @@ func (w *Workflow) BundleID() string {
 
 // GetConfirmation opens a confirmation dialog to ask the user to confirm something.
 func (w *Workflow) GetConfirmation(prompt string, defaultYes bool) (confirmed bool, err error) {
-	script :=
-		`tell application "Alfred 2"
-			  activate
-			  set alfredPath to (path to application "Alfred 2")
-			  set alfredIcon to path to resource "appicon.icns" in bundle (alfredPath as alias)
-			  display dialog "%s" with title "%s" buttons {"Yes", "No"} default button "%s" with icon alfredIcon
-		  end tell`
-
-	def := "No"
-	if defaultYes {
-		def = "Yes"
+	version := GetAlfredVersion()
+	type ScriptData struct {
+		Version string
+		Prompt  string
+		Title   string
+		Default string
 	}
 
-	script = fmt.Sprintf(script, prompt, w.name, def)
+	script :=
+		`tell application "Alfred {{.Version}}"
+			  activate
+			  set alfredPath to (path to application "Alfred {{.Version}}")
+			  set alfredIcon to path to resource "appicon.icns" in bundle (alfredPath as alias)
+			  display dialog "{{.Prompt}}" with title "{{.Title}}" buttons {"Yes", "No"} default button "{{.Default}}" with icon alfredIcon
+		  end tell`
+
+	data := ScriptData{version, prompt, w.name, "No"}
+	if defaultYes {
+		data.Default = "Yes"
+	}
+
+	var tmpl *template.Template
+	tmpl, err = template.New("script").Parse(script)
+	if err != nil {
+		return
+	}
+
+	var buf bytes.Buffer
+	err = tmpl.Execute(&buf, data)
+	if err != nil {
+		return
+	}
+
+	script = buf.String()
 	var response string
 	response, err = RunScript(script)
 	if err != nil {
@@ -493,20 +536,41 @@ func (w *Workflow) GetConfirmation(prompt string, defaultYes bool) (confirmed bo
 
 // GetInput opens an input dialog to ask the user for some information.
 func (w *Workflow) GetInput(prompt, defaultVal string, hideAnswer bool) (button, value string, err error) {
-	script :=
-		`tell application "Alfred 2"
-			  activate
-			  set alfredPath to (path to application "Alfred 2")
-			  set alfredIcon to path to resource "appicon.icns" in bundle (alfredPath as alias)
-			  display dialog "%s:" with title "%s" default answer "%s" buttons {"Cancel", "Ok"} default button "Ok" with icon alfredIcon%s
-		  end tell`
-
-	var hidden string
-	if hideAnswer {
-		hidden = " with hidden answer"
+	version := GetAlfredVersion()
+	type ScriptData struct {
+		Version string
+		Prompt  string
+		Title   string
+		Default string
+		Hidden  string
 	}
 
-	script = fmt.Sprintf(script, prompt, w.name, defaultVal, hidden)
+	script :=
+		`tell application "Alfred {{.Version}}"
+			  activate
+			  set alfredPath to (path to application "Alfred {{.Version}}")
+			  set alfredIcon to path to resource "appicon.icns" in bundle (alfredPath as alias)
+			  display dialog "{{.Prompt}}:" with title "{{.Title}}" default answer "{{.Default}}" buttons {"Cancel", "Ok"} default button "Ok" with icon alfredIcon{{.Hidden}}
+		  end tell`
+
+	data := ScriptData{version, prompt, w.name, defaultVal, ""}
+	if hideAnswer {
+		data.Hidden = " with hidden answer"
+	}
+
+	var tmpl *template.Template
+	tmpl, err = template.New("script").Parse(script)
+	if err != nil {
+		return
+	}
+
+	var buf bytes.Buffer
+	err = tmpl.Execute(&buf, data)
+	if err != nil {
+		return
+	}
+
+	script = buf.String()
 	var response string
 	response, err = RunScript(script)
 	log.Printf("got response: '%s'", response)
@@ -524,14 +588,36 @@ func (w *Workflow) GetInput(prompt, defaultVal string, hideAnswer bool) (button,
 
 // ShowMessage opens a message dialog to show the user a message.
 func (w *Workflow) ShowMessage(message string) (err error) {
+	version := GetAlfredVersion()
+	type ScriptData struct {
+		Version string
+		Prompt  string
+		Title   string
+	}
+
 	script :=
-		`tell application "Alfred 2"
+		`tell application "Alfred {{.Version}}"
 			  activate
-			  set alfredPath to (path to application "Alfred 2")
+			  set alfredPath to (path to application "Alfred {{.Version}}")
 			  set alfredIcon to path to resource "appicon.icns" in bundle (alfredPath as alias)
-			  display dialog "%s" with title "%s" buttons {"Ok"} default button "Ok" with icon alfredIcon
+			  display dialog "{{.Prompt}}" with title "{{.Title}}" buttons {"Ok"} default button "Ok" with icon alfredIcon
 		  end tell`
-	script = fmt.Sprintf(script, message, w.name)
+
+	data := ScriptData{version, message, w.name}
+
+	var tmpl *template.Template
+	tmpl, err = template.New("script").Parse(script)
+	if err != nil {
+		return
+	}
+
+	var buf bytes.Buffer
+	err = tmpl.Execute(&buf, data)
+	if err != nil {
+		return
+	}
+
+	script = buf.String()
 	_, err = RunScript(script)
 	return
 }
@@ -550,7 +636,7 @@ func LoadJSON(filename string, structure interface{}) error {
 // SaveJSON serializes a given structure and saves it to a file.
 func SaveJSON(filename string, structure interface{}) error {
 	data, _ := json.MarshalIndent(structure, "", "\t")
-	log.Printf("Saving JSON to", filename)
+	log.Printf("Saving JSON to %s", filename)
 	return ioutil.WriteFile(filename, data, 0600)
 }
 

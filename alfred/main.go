@@ -59,6 +59,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/jason0x43/go-alfred"
 	"github.com/jason0x43/go-plist"
 )
 
@@ -162,8 +163,15 @@ func runIfFile(file, cmd string, args ...string) {
 
 func getPrefsDirectory() (string, error) {
 	currentUser, _ := user.Current()
+
+	version := alfred.GetAlfredVersion()
+	prefSuffix := ""
+	if version != "2" {
+		prefSuffix = "-" + version
+	}
+
 	prefFile := path.Join(currentUser.HomeDir, "Library", "Preferences",
-		"com.runningwithcrayons.Alfred-Preferences.plist")
+		"com.runningwithcrayons.Alfred-Preferences"+prefSuffix+".plist")
 	prefPlist, err := plist.UnmarshalFile(prefFile)
 	if err != nil {
 		return "", err
@@ -183,13 +191,14 @@ func getPrefsDirectory() (string, error) {
 			folder = path.Join(currentUser.HomeDir, folder[2:])
 		}
 	} else {
-		folder = path.Join(currentUser.HomeDir, "Library", "Application Support", "Alfred 2")
+		folder = path.Join(currentUser.HomeDir, "Library", "Application Support", "Alfred "+version)
 	}
 
 	info, err := os.Stat(folder)
 	if err != nil {
 		return "", err
 	}
+
 	if !info.IsDir() {
 		return "", errors.New(folder + " is not a directory")
 	}
