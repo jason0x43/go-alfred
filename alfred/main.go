@@ -75,7 +75,7 @@ type command struct {
 }
 
 var commands = []command{
-	command{"build", "build the workflow executable"},
+	command{"build", "build the workflow executable (-a to rebuild libs)"},
 	command{"clean", "clean built files"},
 	command{"info", "display information about the current workflow"},
 	command{"link", "activate this workflow"},
@@ -147,6 +147,27 @@ func die(err error) {
 	os.Exit(1)
 }
 
+// getAlfredVersion returns the highest installed version of Alfred. It uses a very naive algorithm.
+func getAlfredVersion() string {
+	files, _ := ioutil.ReadDir("/Applications")
+	name := ""
+	for _, file := range files {
+		fname := file.Name()
+		if strings.HasPrefix(fname, "Alfred ") && fname > name {
+			name = fname
+			break
+		}
+	}
+	if name != "" {
+		name = strings.TrimSuffix(name, ".app")
+		parts := strings.Split(name, " ")
+		if len(parts) == 2 {
+			return parts[1]
+		}
+	}
+	return ""
+}
+
 func run(cmd string, args ...string) {
 	output, err := exec.Command(cmd, args...).CombinedOutput()
 	if err != nil {
@@ -209,7 +230,12 @@ func getPrefsDirectory() (string, error) {
 func build() {
 	// use go generate, along with custom build tools, to handle any auxiliary build steps
 	run("go", "generate")
-	run("go", "build", "-a", "-ldflags=\"-w\"", "-o", "workflow/"+workflowName)
+
+	if len(os.Args) > 2 && os.Args[2] == "-a" {
+		run("go", "build", "-a", "-ldflags=\"-w\"", "-o", "workflow/"+workflowName)
+	} else {
+		run("go", "build", "-ldflags=\"-w\"", "-o", "workflow/"+workflowName)
+	}
 }
 
 func clean() {
