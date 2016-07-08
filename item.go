@@ -127,6 +127,10 @@ func (i *Item) MarshalJSON() ([]byte, error) {
 		Autocomplete: i.Autocomplete,
 	}
 
+	if i.data == nil {
+		i.data = &workflowData{}
+	}
+
 	data := i.data
 
 	if i.Arg != nil {
@@ -142,7 +146,9 @@ func (i *Item) MarshalJSON() ([]byte, error) {
 		data.Data = i.Arg.Data
 	}
 
+	// Clear the mod flag in case it was set when we got here
 	data.Mod = ""
+
 	ji.Arg = Stringify(data)
 
 	if i.Icon != "" {
@@ -171,11 +177,13 @@ func (i *Item) MarshalJSON() ([]byte, error) {
 			data.Mod = key
 
 			ji.Mods[key] = &jsonMod{
-				Arg:      Stringify(mod.Arg),
+				Arg:      Stringify(data),
 				Valid:    mod.Arg != nil,
 				Subtitle: mod.Subtitle,
 			}
 		}
+
+		data.Mod = ""
 	}
 
 	return json.Marshal(ji)

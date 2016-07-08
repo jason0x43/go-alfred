@@ -196,9 +196,6 @@ func (w *Workflow) Run(allCommands []Command) {
 		}
 	}
 
-	// Keep a copy of the initially parsed data
-	initialData := Stringify(&data)
-
 	// Get the list of available commands
 	for _, c := range allCommands {
 		if c.IsEnabled() {
@@ -247,7 +244,7 @@ func (w *Workflow) Run(allCommands []Command) {
 			items = append(items, &Item{Title: fmt.Sprintf("No results")})
 		}
 
-		w.SendToAlfred(items, &data, initialData)
+		w.SendToAlfred(items, &data)
 
 	case "do":
 		// First, close the Alfred window
@@ -419,29 +416,9 @@ func (w *Workflow) NewKeywordItem(keyword string, withspace bool, desc string) *
 
 // SendToAlfred sends an array of items to Alfred. Currently this equates to
 // outputting an Alfred JSON message on stdout.
-func (w *Workflow) SendToAlfred(items ItemList, data *workflowData, previous string) {
-	dataPrev := data.Previous
-	data.Previous = previous
-
+func (w *Workflow) SendToAlfred(items ItemList, data *workflowData) {
 	for _, item := range items {
-		addMod := false
-
-		if dataPrev != "" {
-			if item.mods == nil {
-				addMod = true
-			} else if _, ok := item.mods["ctrl"]; !ok {
-				addMod = true
-			}
-		}
-
-		if addMod {
-			item.AddMod(ModCtrl, "↩ Go back", &ItemArg{
-				Mode: ModeBack,
-				Data: dataPrev,
-			})
-		}
-
-		item.data = data
+		item.data = &(*data)
 	}
 	out, _ := json.Marshal(items)
 	fmt.Println(string(out))
@@ -502,6 +479,5 @@ type workflowData struct {
 	Mode    ModeType `json:"mode,omitempty"`
 	Mod     ModKey   `json:"mod,omitempty"`
 	// Data is keyword-specific data
-	Data     string `json:"data,omitempty"`
-	Previous string `json:"previous,omitempty"`
+	Data string `json:"data,omitempty"`
 }
