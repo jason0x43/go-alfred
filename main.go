@@ -18,6 +18,7 @@ import (
 )
 
 var dlog = log.New(os.Stderr, "[alfred] ", log.LstdFlags)
+var appName string
 
 //
 // Public API
@@ -146,10 +147,17 @@ func init() {
 		var appname string
 		for _, file := range files {
 			fname := file.Name()
-			if strings.HasPrefix(fname, "Alfred ") && fname > name {
+			if fname[0] < 'A' {
+				continue
+			}
+			if fname[0] > 'A' {
+				break
+			}
+			if strings.HasPrefix(fname, "Alfred ") && fname > appname {
 				appname = fname
 			}
 		}
+
 		if appname != "" {
 			appname = strings.TrimSuffix(appname, ".app")
 			parts := strings.Split(appname, " ")
@@ -157,6 +165,8 @@ func init() {
 				version = parts[1]
 				os.Setenv("alfred_short_version", version)
 			}
+		} else {
+			dlog.Fatal("Could not find Alfred app")
 		}
 
 		if version == "" {
@@ -176,6 +186,8 @@ func init() {
 	} else {
 		os.Setenv("alfred_short_version", strings.SplitN(version, ".", 2)[0])
 	}
+
+	appName = "Alfred " + os.Getenv("alfred_short_version")
 }
 
 func parseDialogResponse(response string) (button string, text string) {

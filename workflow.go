@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/exec"
 	"strconv"
 	"strings"
 	"text/template"
@@ -38,6 +39,20 @@ type CommandDef struct {
 	Description string
 	TakesArg    bool
 	WithSpace   bool
+}
+
+// KeywordItem creates a new Item for a command definition
+func (c *CommandDef) KeywordItem() *Item {
+	ac := c.Keyword
+	if c.WithSpace {
+		ac += " "
+	}
+	return &Item{
+		Title:        c.Keyword,
+		Autocomplete: ac,
+		Subtitle:     c.Description,
+		Arg:          &ItemArg{Keyword: c.Keyword},
+	}
 }
 
 // Command is a Filter or Action
@@ -153,8 +168,8 @@ func (w *Workflow) Run(allCommands []Command) {
 				var block blockConfig
 				block.AlfredWorkflow.Variables.Data = Stringify(&data)
 
-				out, err := RunScript(fmt.Sprintf(`tell application "Alfred 3" to `+
-					`run trigger "toggl" in workflow "com.jason0x43.alfred-toggl" `+
+				out, err := RunScript(fmt.Sprintf(`tell application "`+appName+`" to `+
+					`run trigger "toggl" in workflow "`+w.bundleID+`" `+
 					`with argument %s`, strconv.Quote(Stringify(&block))))
 				if err != nil {
 					dlog.Printf("Error running loopback script: %v", err)
@@ -194,18 +209,18 @@ func (w *Workflow) Run(allCommands []Command) {
 		} else {
 			arg = strings.Trim(arg, " ")
 		}
-	}
 
-	// Get the list of available commands
-	for _, c := range allCommands {
-		if c.IsEnabled() {
-			commands = append(commands, c)
+		// Get the list of available commands
+		for _, c := range allCommands {
+			if c.IsEnabled() {
+				commands = append(commands, c)
+			}
 		}
 	}
 
 	switch data.Mode {
 	case "tell":
-		var items []*Item
+		var items Items
 
 		if err == nil {
 			dlog.Printf("tell: data=%#v, arg='%s'", data, arg)
@@ -226,14 +241,13 @@ func (w *Workflow) Run(allCommands []Command) {
 							}
 						}
 					} else if FuzzyMatches(def.Keyword, keyword) {
-						items = append(items, w.NewKeywordItem(def.Keyword,
-							def.WithSpace, def.Description))
+						items = append(items, def.KeywordItem())
 					}
 				}
 			}
 
 			if arg != "" {
-				items = FuzzySortItems(items, arg)
+				items.FuzzySort(arg)
 			}
 		}
 
@@ -247,30 +261,33 @@ func (w *Workflow) Run(allCommands []Command) {
 		w.SendToAlfred(items, &data)
 
 	case "do":
-		// First, close the Alfred window
-		// TODO: Could show an activity message instead
-		if data.Mod == "" {
-			RunScript(fmt.Sprintf(`tell application "System Events" to ` +
-				`key code 53`))
-		}
-
 		var output string
-		var action Action
 
-		for _, c := range commands {
-			if a, ok := c.(Action); ok && a.IsEnabled() {
-				dlog.Printf("Checking if '%s' == '%s'", a.About().Keyword, keyword)
-				if a.About().Keyword == keyword {
-					action = a
-					break
+		if err == nil {
+			// First, close the Alfred window
+			// TODO: Could show an activity message instead
+			if data.Mod == "" {
+				RunScript(fmt.Sprintf(`tell application "System Events" to ` +
+					`key code 53`))
+			}
+
+			var action Action
+
+			for _, c := range commands {
+				if a, ok := c.(Action); ok && a.IsEnabled() {
+					dlog.Printf("Checking if '%s' == '%s'", a.About().Keyword, keyword)
+					if a.About().Keyword == keyword {
+						action = a
+						break
+					}
 				}
 			}
-		}
 
-		if action == nil {
-			err = fmt.Errorf("No valid command in '%s'", arg)
-		} else {
-			output, err = action.Do(arg, data.Data)
+			if action == nil {
+				err = fmt.Errorf("No valid command in '%s'", arg)
+			} else {
+				output, err = action.Do(arg, data.Data)
+			}
 		}
 
 		if err != nil {
@@ -284,6 +301,17 @@ func (w *Workflow) Run(allCommands []Command) {
 	default:
 		fmt.Printf("Invalid mode: '%s'\n", mode)
 	}
+}
+
+// AddPassword adds or updates a password in the macOS Keychain
+func (w *Workflow) AddPassword(name, password string) (err error) {
+	var out []byte
+	out, err = exec.Command("security", "add-generic-password", "-w", "-g",
+		"-a", w.bundleID, "-s", name, "-w", password, "-U").Output()
+	if err != nil {
+		dlog.Printf("Error adding password: %s", string(out))
+	}
+	return
 }
 
 // CacheDir returns the cache directory for a workflow.
@@ -349,15 +377,6 @@ func (w *Workflow) GetConfirmation(prompt string, defaultYes bool) (confirmed bo
 
 // GetInput opens an input dialog to ask the user for some information.
 func (w *Workflow) GetInput(prompt, defaultVal string, hideAnswer bool) (button, value string, err error) {
-	version := os.Getenv("alfred_short_version")
-	type ScriptData struct {
-		Version string
-		Prompt  string
-		Title   string
-		Default string
-		Hidden  string
-	}
-
 	script :=
 		`tell application "Alfred {{.Version}}"
 			  activate
@@ -366,7 +385,14 @@ func (w *Workflow) GetInput(prompt, defaultVal string, hideAnswer bool) (button,
 			  display dialog "{{.Prompt}}:" with title "{{.Title}}" default answer "{{.Default}}" buttons {"Cancel", "Ok"} default button "Ok" with icon alfredIcon{{.Hidden}}
 		  end tell`
 
-	data := ScriptData{version, prompt, w.name, defaultVal, ""}
+	data := struct {
+		Version string
+		Prompt  string
+		Title   string
+		Default string
+		Hidden  string
+	}{os.Getenv("alfred_short_version"), prompt, w.name, defaultVal, ""}
+
 	if hideAnswer {
 		data.Hidden = " with hidden answer"
 	}
@@ -399,24 +425,22 @@ func (w *Workflow) GetInput(prompt, defaultVal string, hideAnswer bool) (button,
 	return
 }
 
-// NewKeywordItem creates a new Item representing a keyword.
-func (w *Workflow) NewKeywordItem(keyword string, withspace bool, desc string) *Item {
-	ac := keyword
-	if withspace {
-		ac += " "
+// GetPassword returns a workflow-specific password from the macOS Keychain
+func (w *Workflow) GetPassword(name string) (pw string, err error) {
+	var out []byte
+	out, err = exec.Command("security", "find-generic-password", "-w", "-g",
+		"-a", w.bundleID, "-s", name).Output()
+	if err != nil {
+		dlog.Printf("Error getting password: %s", string(out))
+		return
 	}
-
-	return &Item{
-		Title:        keyword,
-		Autocomplete: ac,
-		Subtitle:     desc,
-		Arg:          &ItemArg{Keyword: keyword},
-	}
+	pw = strings.TrimSpace(string(out))
+	return
 }
 
 // SendToAlfred sends an array of items to Alfred. Currently this equates to
 // outputting an Alfred JSON message on stdout.
-func (w *Workflow) SendToAlfred(items ItemList, data *workflowData) {
+func (w *Workflow) SendToAlfred(items Items, data *workflowData) {
 	for _, item := range items {
 		item.data = &(*data)
 	}
@@ -426,13 +450,6 @@ func (w *Workflow) SendToAlfred(items ItemList, data *workflowData) {
 
 // ShowMessage opens a message dialog to show the user a message.
 func (w *Workflow) ShowMessage(message string) (err error) {
-	version := os.Getenv("alfred_short_version")
-	type ScriptData struct {
-		Version string
-		Prompt  string
-		Title   string
-	}
-
 	script :=
 		`tell application "Alfred {{.Version}}"
 			  activate
@@ -441,7 +458,11 @@ func (w *Workflow) ShowMessage(message string) (err error) {
 			  display dialog "{{.Prompt}}" with title "{{.Title}}" buttons {"Ok"} default button "Ok" with icon alfredIcon
 		  end tell`
 
-	data := ScriptData{version, message, w.name}
+	data := struct {
+		Version string
+		Prompt  string
+		Title   string
+	}{os.Getenv("alfred_short_version"), message, w.name}
 
 	var tmpl *template.Template
 	tmpl, err = template.New("script").Parse(script)
@@ -473,7 +494,8 @@ type blockConfig struct {
 }
 
 // workflowData describes the state of the workflow. It is used to communicate
-// between workflow instances.
+// between workflow instances. All the elements of this structure should be
+// primitives to allow easy copying.
 type workflowData struct {
 	Keyword string   `json:"keyword,omitempty"`
 	Mode    ModeType `json:"mode,omitempty"`
