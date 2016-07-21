@@ -247,7 +247,9 @@ func (w *Workflow) Run(allCommands []Command) {
 			}
 
 			if arg != "" {
-				items.FuzzySort(arg)
+				items.fuzzySort(arg)
+			} else if keyword != "" {
+				items.fuzzySort(keyword)
 			}
 		}
 
