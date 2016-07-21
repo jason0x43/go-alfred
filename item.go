@@ -2,9 +2,7 @@ package alfred
 
 import (
 	"encoding/json"
-	"math"
 	"sort"
-	"strings"
 )
 
 // Item is an Alfred list item
@@ -16,8 +14,8 @@ type Item struct {
 	Arg          *ItemArg
 	Icon         string
 
-	mods map[ModKey]*ItemMod
-	data *workflowData
+	mods map[ModKey]ItemMod
+	data workflowData
 
 	// Used for sorting
 	fuzzyScore float64
@@ -40,9 +38,9 @@ type ItemMod struct {
 }
 
 // AddMod adds a an ItemMod to an Item's mod map, creating the map if necessary
-func (i *Item) AddMod(key ModKey, mod *ItemMod) {
+func (i *Item) AddMod(key ModKey, mod ItemMod) {
 	if i.mods == nil {
-		i.mods = map[ModKey]*ItemMod{}
+		i.mods = map[ModKey]ItemMod{}
 	}
 	i.mods[key] = mod
 }
@@ -57,12 +55,12 @@ func (i *Item) AddCheckBox(selected bool) {
 }
 
 // Items is a list of items
-type Items []*Item
+type Items []Item
 
 // MarshalJSON marshals a list of Items
 func (i Items) MarshalJSON() ([]byte, error) {
 	var items struct {
-		Items []*Item `json:"items"`
+		Items []Item `json:"items"`
 	}
 
 	for _, item := range i {
@@ -79,10 +77,6 @@ func (i *Item) MarshalJSON() ([]byte, error) {
 		Title:        i.Title,
 		Valid:        i.Arg != nil,
 		Autocomplete: i.Autocomplete,
-	}
-
-	if i.data == nil {
-		i.data = &workflowData{}
 	}
 
 	data := i.data
@@ -144,7 +138,7 @@ func (i *Item) MarshalJSON() ([]byte, error) {
 }
 
 // InsertItem inserts an item at a specific index in an array of Items.
-func InsertItem(items Items, item *Item, index int) Items {
+func InsertItem(items Items, item Item, index int) Items {
 	items = append(items, item)
 	copy(items[index+1:], items[index:])
 	items[index] = item

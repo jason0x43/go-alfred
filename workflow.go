@@ -37,34 +37,43 @@ const (
 type CommandDef struct {
 	Keyword     string
 	Description string
-	TakesArg    bool
-	WithSpace   bool
+	Mods        map[ModKey]ItemMod
+	IsEnabled   bool
+	Arg         *ItemArg
 }
 
 // KeywordItem creates a new Item for a command definition
-func (c *CommandDef) KeywordItem() *Item {
-	ac := c.Keyword
-	if c.WithSpace {
-		ac += " "
-	}
-	return &Item{
+func (c *CommandDef) KeywordItem() Item {
+	item := Item{
 		Title:        c.Keyword,
-		Autocomplete: ac,
+		Autocomplete: c.Keyword,
 		Subtitle:     c.Description,
-		Arg:          &ItemArg{Keyword: c.Keyword},
 	}
+
+	if c.Arg != nil {
+		item.Arg = c.Arg
+	} else {
+		item.Arg = &ItemArg{Keyword: c.Keyword}
+	}
+
+	if c.Mods != nil {
+		for key, mod := range c.Mods {
+			item.AddMod(key, mod)
+		}
+	}
+
+	return item
 }
 
 // Command is a Filter or Action
 type Command interface {
-	About() *CommandDef
-	IsEnabled() bool
+	About() CommandDef
 }
 
 // Filter is a Command that creates a filtered list of items
 type Filter interface {
 	Command
-	Items(arg, data string) ([]*Item, error)
+	Items(arg, data string) ([]Item, error)
 }
 
 // Action is Command that does something
@@ -83,7 +92,7 @@ type Workflow struct {
 
 // OpenWorkflow returns a Workflow for a given directory. If the createDirs
 // option is true, cache and data directories will be created for the workflow.
-func OpenWorkflow(workflowDir string, createDirs bool) (w *Workflow, err error) {
+func OpenWorkflow(workflowDir string, createDirs bool) (w Workflow, err error) {
 	bundleID := os.Getenv("alfred_workflow_bundleid")
 	name := os.Getenv("alfred_workflow_name")
 	cacheDir := os.Getenv("alfred_workflow_cache")
@@ -98,7 +107,7 @@ func OpenWorkflow(workflowDir string, createDirs bool) (w *Workflow, err error) 
 		}
 	}
 
-	w = &Workflow{
+	w = Workflow{
 		name:     name,
 		bundleID: bundleID,
 		cacheDir: cacheDir,
@@ -212,7 +221,7 @@ func (w *Workflow) Run(allCommands []Command) {
 
 		// Get the list of available commands
 		for _, c := range allCommands {
-			if c.IsEnabled() {
+			if c.About().IsEnabled {
 				commands = append(commands, c)
 			}
 		}
@@ -226,21 +235,25 @@ func (w *Workflow) Run(allCommands []Command) {
 			dlog.Printf("tell: data=%#v, arg='%s'", data, arg)
 
 			for _, c := range commands {
-				if f, ok := c.(Filter); ok && f.IsEnabled() {
-					def := f.About()
-					if def.Keyword == keyword {
-						var filterItems []*Item
-						if filterItems, err = f.Items(arg, data.Data); err == nil {
-							for _, i := range filterItems {
-								items = append(items, i)
+				// Add items for a Filter matching the keyword, or for any enabled Command with an Arg in its CommandDef
+				if def := c.About(); def.IsEnabled {
+					if f, ok := c.(Filter); ok {
+						if def.Keyword == data.Keyword {
+							var filterItems []Item
+							if filterItems, err = f.Items(arg, data.Data); err == nil {
+								for _, i := range filterItems {
+									items = append(items, i)
 
-								// Add the prefix to Autocomplete strings
-								if i.Autocomplete != "" {
-									i.Autocomplete = prefix + i.Autocomplete
+									// Add the prefix to Autocomplete strings
+									if i.Autocomplete != "" {
+										i.Autocomplete = prefix + i.Autocomplete
+									}
 								}
 							}
+						} else if FuzzyMatches(def.Keyword, keyword) {
+							items = append(items, def.KeywordItem())
 						}
-					} else if FuzzyMatches(def.Keyword, keyword) {
+					} else if _, ok := c.(Action); ok && def.Arg != nil && FuzzyMatches(def.Keyword, keyword) {
 						items = append(items, def.KeywordItem())
 					}
 				}
@@ -255,12 +268,12 @@ func (w *Workflow) Run(allCommands []Command) {
 
 		if err != nil {
 			dlog.Printf("Error: %s", err)
-			items = append(items, &Item{Title: fmt.Sprintf("Error: %s", err)})
+			items = append(items, Item{Title: fmt.Sprintf("Error: %s", err)})
 		} else if len(items) == 0 {
-			items = append(items, &Item{Title: fmt.Sprintf("No results")})
+			items = append(items, Item{Title: fmt.Sprintf("No results")})
 		}
 
-		w.SendToAlfred(items, &data)
+		w.SendToAlfred(items, data)
 
 	case "do":
 		var output string
@@ -276,11 +289,13 @@ func (w *Workflow) Run(allCommands []Command) {
 			var action Action
 
 			for _, c := range commands {
-				if a, ok := c.(Action); ok && a.IsEnabled() {
-					dlog.Printf("Checking if '%s' == '%s'", a.About().Keyword, keyword)
-					if a.About().Keyword == keyword {
-						action = a
-						break
+				if a, ok := c.(Action); ok {
+					if def := a.About(); def.IsEnabled {
+						dlog.Printf("Checking if '%s' == '%s'", a.About().Keyword, keyword)
+						if def.Keyword == keyword {
+							action = a
+							break
+						}
 					}
 				}
 			}
@@ -442,9 +457,9 @@ func (w *Workflow) GetPassword(name string) (pw string, err error) {
 
 // SendToAlfred sends an array of items to Alfred. Currently this equates to
 // outputting an Alfred JSON message on stdout.
-func (w *Workflow) SendToAlfred(items Items, data *workflowData) {
+func (w *Workflow) SendToAlfred(items Items, data workflowData) {
 	for _, item := range items {
-		item.data = &(*data)
+		item.data = data
 	}
 	out, _ := json.Marshal(items)
 	fmt.Println(string(out))
