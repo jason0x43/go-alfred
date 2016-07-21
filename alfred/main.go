@@ -59,7 +59,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/jason0x43/go-alfred"
 	"github.com/jason0x43/go-plist"
 )
 
@@ -185,7 +184,7 @@ func runIfFile(file, cmd string, args ...string) {
 func getPrefsDirectory() (string, error) {
 	currentUser, _ := user.Current()
 
-	version := alfred.GetAlfredVersion()
+	version := getAlfredVersion()
 	prefSuffix := ""
 	if version != "2" {
 		prefSuffix = "-" + version
