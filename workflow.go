@@ -43,12 +43,10 @@ type CommandDef struct {
 }
 
 // KeywordItem creates a new Item for a command definition
-func (c *CommandDef) KeywordItem() Item {
-	item := Item{
-		Title:        c.Keyword,
-		Autocomplete: c.Keyword,
-		Subtitle:     c.Description,
-	}
+func (c *CommandDef) KeywordItem() (item Item) {
+	item.Title = c.Keyword
+	item.Autocomplete = c.Keyword
+	item.Subtitle = c.Description
 
 	if c.Arg != nil {
 		item.Arg = c.Arg
@@ -62,7 +60,7 @@ func (c *CommandDef) KeywordItem() Item {
 		}
 	}
 
-	return item
+	return
 }
 
 // Command is a Filter or Action
@@ -121,11 +119,23 @@ func OpenWorkflow(workflowDir string, createDirs bool) (w Workflow, err error) {
 //
 // A Workflow understands the following command line formats
 //
-//  $ ./workflow [-final] (arg|data)
-//  $ ./workflow [-final] arg data
+//  $ ./workflow (arg|data)
+//  $ ./workflow arg data
+//  $ ./workflow -final data
 //
+// Run takes one parameter: a list of Commands. Commands may be Filters or
+// Actions. Filters are commands that generate lists of items, while Actions
+// are commands that take an action.
 //
-func (w *Workflow) Run(allCommands []Command) {
+// When the mode is "tell"...
+//   * ...and a keyword was specified in the incoming data, the Filter matching
+//     that keyword (if there is one) is called to generate items
+//   * ...and no keyword was specified in the incoming data, items are generated
+//     for:
+//     * any Filter with a fuzzy-matching keyword
+//     * any Action with a fuzzy-matching keyword and an Arg in its CommandDef
+//
+func (w *Workflow) Run(commands []Command) {
 	var mode ModeType
 	var final bool
 	var arg string
@@ -133,7 +143,6 @@ func (w *Workflow) Run(allCommands []Command) {
 	var keyword string
 	var prefix string
 	var err error
-	var commands []Command
 
 	flag.BoolVar(&final, "final", false, "If true, act as the final workflow "+
 		"stage")
@@ -162,7 +171,8 @@ func (w *Workflow) Run(allCommands []Command) {
 	}
 
 	if err == nil {
-		// If this is the final step in the workflow, the data should be actionable
+		// If this is the final step in the workflow, the data should be
+		// actionable
 		if final {
 			if data.Mode == "" {
 				data.Mode = ModeTell
@@ -177,9 +187,10 @@ func (w *Workflow) Run(allCommands []Command) {
 				var block blockConfig
 				block.AlfredWorkflow.Variables.Data = Stringify(&data)
 
-				out, err := RunScript(fmt.Sprintf(`tell application "`+appName+`" to `+
-					`run trigger "toggl" in workflow "`+w.bundleID+`" `+
-					`with argument %s`, strconv.Quote(Stringify(&block))))
+				out, err := RunScript(fmt.Sprintf(`tell application "`+
+					appName+`" to run trigger "start" in workflow "`+
+					w.bundleID+`" with argument %s`,
+					strconv.Quote(Stringify(&block))))
 				if err != nil {
 					dlog.Printf("Error running loopback script: %v", err)
 				} else {
@@ -198,10 +209,9 @@ func (w *Workflow) Run(allCommands []Command) {
 		keyword = data.Keyword
 		dlog.Printf("set keyword to '%s'", keyword)
 
-		// If the keyword wasn't specified in the incoming data, parse it
-		// out of the argument. The keyword part of the argument will
-		// become the prefix, and the remainder will be passed to Items or
-		// Do as the arg
+		// If the keyword wasn't specified in the incoming data, parse it out
+		// of the argument. The keyword part of the argument will become the
+		// prefix, and the remainder will be passed to Items or Do as the arg
 		if keyword == "" {
 			cmd, rest := SplitCmd(arg)
 			keyword = cmd
@@ -218,13 +228,6 @@ func (w *Workflow) Run(allCommands []Command) {
 		} else {
 			arg = strings.Trim(arg, " ")
 		}
-
-		// Get the list of available commands
-		for _, c := range allCommands {
-			if c.About().IsEnabled {
-				commands = append(commands, c)
-			}
-		}
 	}
 
 	switch data.Mode {
@@ -235,34 +238,39 @@ func (w *Workflow) Run(allCommands []Command) {
 			dlog.Printf("tell: data=%#v, arg='%s'", data, arg)
 
 			for _, c := range commands {
-				// Add items for a Filter matching the keyword, or for any enabled Command with an Arg in its CommandDef
-				if def := c.About(); def.IsEnabled {
-					if f, ok := c.(Filter); ok {
-						if def.Keyword == data.Keyword {
-							var filterItems []Item
-							if filterItems, err = f.Items(arg, data.Data); err == nil {
-								for _, i := range filterItems {
-									items = append(items, i)
+				def := c.About()
 
-									// Add the prefix to Autocomplete strings
-									if i.Autocomplete != "" {
-										i.Autocomplete = prefix + i.Autocomplete
-									}
+				// Skip disabled commands
+				if !def.IsEnabled {
+					dlog.Printf("Skipping disabled command '%s'", def.Keyword)
+					continue
+				}
+
+				if data.Keyword != "" {
+					if f, ok := c.(Filter); ok && def.Keyword == data.Keyword {
+						dlog.Printf("Adding items for '%s'", def.Keyword)
+						var filterItems []Item
+						if filterItems, err = f.Items(arg, data.Data); err == nil {
+							for _, i := range filterItems {
+								items = append(items, i)
+
+								// Add the prefix to Autocomplete strings
+								if i.Autocomplete != "" {
+									i.Autocomplete = prefix + i.Autocomplete
 								}
 							}
-						} else if FuzzyMatches(def.Keyword, keyword) {
-							items = append(items, def.KeywordItem())
 						}
-					} else if _, ok := c.(Action); ok && def.Arg != nil && FuzzyMatches(def.Keyword, keyword) {
+					}
+				} else if FuzzyMatches(def.Keyword, keyword) {
+					if _, ok := c.(Filter); ok || def.Arg != nil {
+						dlog.Printf("Adding menu item for '%s'", def.Keyword)
 						items = append(items, def.KeywordItem())
 					}
 				}
 			}
 
 			if arg != "" {
-				items.fuzzySort(arg)
-			} else if keyword != "" {
-				items.fuzzySort(keyword)
+				FuzzySort(items, arg)
 			}
 		}
 
@@ -278,6 +286,8 @@ func (w *Workflow) Run(allCommands []Command) {
 	case "do":
 		var output string
 
+		// Note that in "do" mode only the "data" input is used
+
 		if err == nil {
 			// First, close the Alfred window
 			// TODO: Could show an activity message instead
@@ -289,13 +299,19 @@ func (w *Workflow) Run(allCommands []Command) {
 			var action Action
 
 			for _, c := range commands {
+				def := c.About()
+
+				// Skip disabled commands
+				if !def.IsEnabled {
+					continue
+				}
+
 				if a, ok := c.(Action); ok {
-					if def := a.About(); def.IsEnabled {
-						dlog.Printf("Checking if '%s' == '%s'", a.About().Keyword, keyword)
-						if def.Keyword == keyword {
-							action = a
-							break
-						}
+					dlog.Printf("Checking if '%s' == '%s'", a.About().Keyword,
+						keyword)
+					if def.Keyword == keyword {
+						action = a
+						break
 					}
 				}
 			}
@@ -346,7 +362,8 @@ func (w *Workflow) BundleID() string {
 	return w.bundleID
 }
 
-// GetConfirmation opens a confirmation dialog to ask the user to confirm something.
+// GetConfirmation opens a confirmation dialog to ask the user to confirm
+// something.
 func (w *Workflow) GetConfirmation(prompt string, defaultYes bool) (confirmed bool, err error) {
 	version := os.Getenv("alfred_short_version")
 	type ScriptData struct {

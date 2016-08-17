@@ -62,11 +62,7 @@ func (i Items) MarshalJSON() ([]byte, error) {
 	var items struct {
 		Items []Item `json:"items"`
 	}
-
-	for _, item := range i {
-		items.Items = append(items.Items, item)
-	}
-
+	items.Items = i
 	return json.Marshal(items)
 }
 
@@ -138,7 +134,7 @@ func (i *Item) MarshalJSON() ([]byte, error) {
 }
 
 // InsertItem inserts an item at a specific index in an array of Items.
-func InsertItem(items Items, item Item, index int) Items {
+func InsertItem(items []Item, item Item, index int) Items {
 	items = append(items, item)
 	copy(items[index+1:], items[index:])
 	items[index] = item
