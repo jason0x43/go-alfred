@@ -77,7 +77,7 @@ type Filter interface {
 // Action is Command that does something
 type Action interface {
 	Command
-	Do(arg, data string) (string, error)
+	Do(data string) (string, error)
 }
 
 // Workflow represents an Alfred workflow
@@ -319,7 +319,7 @@ func (w *Workflow) Run(commands []Command) {
 			if action == nil {
 				err = fmt.Errorf("No valid command in '%s'", arg)
 			} else {
-				output, err = action.Do(arg, data.Data)
+				output, err = action.Do(data.Data)
 			}
 		}
 
