@@ -106,10 +106,11 @@ func (i *Item) MarshalJSON() ([]byte, error) {
 	}
 
 	if len(i.mods) > 0 {
-		ji.Mods = map[ModKey]*jsonMod{}
+		ji.Mods = map[ModKey]jsonMod{}
 
 		for key, mod := range i.mods {
 			if mod.Arg != nil {
+				data.Keyword = mod.Arg.Keyword
 				data.Mode = mod.Arg.Mode
 				data.Data = mod.Arg.Data
 			}
@@ -120,7 +121,7 @@ func (i *Item) MarshalJSON() ([]byte, error) {
 
 			data.Mod = key
 
-			ji.Mods[key] = &jsonMod{
+			ji.Mods[key] = jsonMod{
 				Arg:      Stringify(data),
 				Valid:    mod.Arg != nil,
 				Subtitle: mod.Subtitle,
@@ -163,17 +164,17 @@ func (b ByTitle) Less(i, j int) bool {
 
 // jsonItem is the JSON representation of an Alfred item
 type jsonItem struct {
-	UID          string              `json:"uid,omitempty"`
-	Title        string              `json:"title"`
-	Subtitle     string              `json:"subtitle,omitempty"`
-	Arg          string              `json:"arg,omitempty"`
-	Icon         *jsonIcon           `json:"icon,omitempty"`
-	Valid        bool                `json:"valid"`
-	Autocomplete string              `json:"autocomplete,omitempty"`
-	Type         jsonType            `json:"type,omitempty"`
-	Mods         map[ModKey]*jsonMod `json:"mods,omitempty"`
-	Text         *jsonText           `json:"text,omitempty"`
-	QuickLookURL string              `json:"quicklookurl,omitempty"`
+	UID          string             `json:"uid,omitempty"`
+	Title        string             `json:"title"`
+	Subtitle     string             `json:"subtitle,omitempty"`
+	Arg          string             `json:"arg,omitempty"`
+	Icon         *jsonIcon          `json:"icon,omitempty"`
+	Valid        bool               `json:"valid"`
+	Autocomplete string             `json:"autocomplete,omitempty"`
+	Type         jsonType           `json:"type,omitempty"`
+	Mods         map[ModKey]jsonMod `json:"mods,omitempty"`
+	Text         *jsonText          `json:"text,omitempty"`
+	QuickLookURL string             `json:"quicklookurl,omitempty"`
 }
 
 // jsonType is the type of a JSON item
