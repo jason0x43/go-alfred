@@ -134,6 +134,15 @@ func (i *Item) MarshalJSON() ([]byte, error) {
 	return json.Marshal(ji)
 }
 
+// FuzzySort sorts an items list in-place based how well they match a given
+// test string.
+func FuzzySort(items []Item, test string) {
+	for idx := range items {
+		items[idx].fuzzyScore = fuzzyScore(items[idx].Title, test)
+	}
+	sort.Stable(byFuzzyScore(items))
+}
+
 // InsertItem inserts an item at a specific index in an array of Items.
 func InsertItem(items []Item, item Item, index int) Items {
 	items = append(items, item)
@@ -217,13 +226,4 @@ func (b byFuzzyScore) Swap(i, j int) {
 
 func (b byFuzzyScore) Less(i, j int) bool {
 	return b[i].fuzzyScore > b[j].fuzzyScore
-}
-
-// fuzzySort sorts an array of items in-place based how well they match a given
-// test string.
-func (i Items) fuzzySort(test string) {
-	for idx := range i {
-		i[idx].fuzzyScore = fuzzyScore(i[idx].Title, test)
-	}
-	sort.Stable(byFuzzyScore(i))
 }
