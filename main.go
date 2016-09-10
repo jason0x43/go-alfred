@@ -5,6 +5,7 @@ package alfred
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
@@ -27,6 +28,9 @@ var appName string
 const (
 	// Line is an underline
 	Line = "–––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––"
+
+	// MinAlfredVersion is the minimum supported version of Alfred
+	MinAlfredVersion = "3.1"
 )
 
 // CleanSplitN trims leading and trailing whitespace from a string, splits it
@@ -119,13 +123,14 @@ func TrimAllLeft(parts []string) []string {
 
 // Ensure the workflow environment is initialized
 func init() {
-	version := os.Getenv("alfred_version")
-
 	if !IsDebugging() {
 		// If a debugging panel isn't open, disable logging
 		dlog.SetOutput(ioutil.Discard)
 		dlog.SetFlags(0)
 	}
+
+	version := os.Getenv("alfred_version")
+	dlog.Printf("Alfred version: %s", version)
 
 	if version == "" {
 		// If alfred_version wasn't present in the environment, initialize it manually
@@ -184,10 +189,38 @@ func init() {
 		dataDir := path.Join(u.HomeDir, "Library", "Application Support", "Alfred "+version, "Workflow Data", bundleID)
 		os.Setenv("alfred_workflow_data", dataDir)
 	} else {
+		if !checkVersion(version) {
+			message := fmt.Sprintf("This workflow requires Alfred %s+", MinAlfredVersion)
+
+			if version[0] == '2' {
+				fmt.Printf(`<?xml version="1.0"?><items><item><title>%s</title></item></items>`, message)
+			} else {
+				fmt.Printf(`{"items":[{"title":"%s"}]}`, message)
+			}
+			dlog.Fatalf(message)
+		}
+
 		os.Setenv("alfred_short_version", strings.SplitN(version, ".", 2)[0])
 	}
 
 	appName = "Alfred " + os.Getenv("alfred_short_version")
+}
+
+// checkVersion returns true if a given version is greater than or equal to the minimum supported alfred version
+func checkVersion(version string) bool {
+	validParts := strings.Split(MinAlfredVersion, ".")
+	parts := strings.Split(version, ".")
+
+	for i := range validParts {
+		if i >= len(parts) || validParts[i] > parts[i] {
+			return false
+		}
+		if parts[i] > validParts[i] {
+			return true
+		}
+	}
+
+	return true
 }
 
 func parseDialogResponse(response string) (button string, text string) {
