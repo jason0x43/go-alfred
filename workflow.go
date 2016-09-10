@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"strconv"
 	"strings"
 	"text/template"
 )
@@ -186,17 +185,7 @@ func (w *Workflow) Run(commands []Command) {
 			if data.Mode == ModeBack || data.Mode == ModeTell {
 				var block blockConfig
 				block.AlfredWorkflow.Variables.Data = Stringify(&data)
-
-				out, err := RunScript(fmt.Sprintf(`tell application "`+
-					appName+`" to run trigger "start" in workflow "`+
-					w.bundleID+`" with argument %s`,
-					strconv.Quote(Stringify(&block))))
-				if err != nil {
-					dlog.Printf("Error running loopback script: %v", err)
-				} else {
-					dlog.Println(out)
-				}
-
+				fmt.Printf("-trigger %s", Stringify(&block))
 				return
 			}
 		}
@@ -291,13 +280,6 @@ func (w *Workflow) Run(commands []Command) {
 		// Note that in "do" mode only the "data" input is used
 
 		if err == nil {
-			// First, close the Alfred window
-			// TODO: Could show an activity message instead
-			if data.Mod == "" {
-				RunScript(fmt.Sprintf(`tell application "System Events" to ` +
-					`key code 53`))
-			}
-
 			var action Action
 
 			for _, c := range commands {
