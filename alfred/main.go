@@ -40,8 +40,8 @@ The available commands are:
 		<filename>.alfredworkflow, where "filename" is the basename of the
 		workflow directory.
 	unlink
-		Link the "workflow" subdirectory into Alfred's preferences directory,
-		installing it.
+		Unlink the "workflow" subdirectory from Alfred's preferences directory,
+		uninstalling it.
 
 */
 package main
