@@ -253,7 +253,9 @@ func (w *Workflow) Run(commands []Command) {
 				} else if FuzzyMatches(def.Keyword, keyword) {
 					if _, ok := c.(Filter); ok || def.Arg != nil {
 						dlog.Printf("Adding menu item for '%s'", def.Keyword)
-						items = append(items, def.KeywordItem())
+						item := def.KeywordItem()
+						item.UID = fmt.Sprintf("%s.%s", w.bundleID, def.Keyword)
+						items = append(items, item)
 					}
 				}
 			}
