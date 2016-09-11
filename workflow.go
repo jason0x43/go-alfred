@@ -258,10 +258,12 @@ func (w *Workflow) Run(commands []Command) {
 				}
 			}
 
-			if arg != "" {
-				FuzzySort(items, arg)
-			} else if keyword != "" {
-				FuzzySort(items, keyword)
+			if err == nil {
+				if arg != "" {
+					FuzzySort(items, arg)
+				} else if keyword != "" {
+					FuzzySort(items, keyword)
+				}
 			}
 		}
 
