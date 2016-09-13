@@ -261,9 +261,8 @@ func (w *Workflow) Run(commands []Command) {
 			}
 
 			if err == nil {
-				if arg != "" {
-					FuzzySort(items, arg)
-				} else if keyword != "" {
+				if arg == "" && keyword == "" {
+					dlog.Printf("Fuzzy sorting items")
 					FuzzySort(items, keyword)
 				}
 			}
