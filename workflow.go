@@ -7,8 +7,11 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"sort"
 	"strings"
 	"text/template"
+
+	"github.com/blang/semver"
 )
 
 // ModKey is a modifier key (e.g., cmd, ctrl, alt)
@@ -85,6 +88,9 @@ type Workflow struct {
 	bundleID string
 	cacheDir string
 	dataDir  string
+	website  string
+	version  string
+	info     Plist
 }
 
 // OpenWorkflow returns a Workflow for a given directory. If the createDirs
@@ -349,6 +355,77 @@ func (w *Workflow) BundleID() string {
 	return w.bundleID
 }
 
+// Name returns a workflow's name.
+func (w *Workflow) Name() string {
+	return w.name
+}
+
+// Website returns a workflow's website URL.
+func (w *Workflow) Website() string {
+	if w.website != "" {
+		return w.website
+	}
+
+	if plist, err := w.plist(); err == nil {
+		if dict, ok := plist.Root.(Dict); ok {
+			if webaddress, ok := dict["webaddress"]; ok {
+				w.website = webaddress.(string)
+			}
+		}
+	}
+
+	return w.website
+}
+
+// Version returns a workflow's website URL.
+func (w *Workflow) Version() string {
+	if w.version != "" {
+		return w.version
+	}
+
+	if plist, err := w.plist(); err == nil {
+		if dict, ok := plist.Root.(Dict); ok {
+			if version, ok := dict["version"]; ok {
+				w.version = version.(string)
+			}
+		}
+	}
+
+	return w.version
+}
+
+// UpdateAvailable returns a non-empty string if an update for this workflow is
+// available. The string contains the available version.
+func (w *Workflow) UpdateAvailable() (release GitHubRelease, available bool) {
+	website := w.Website()
+	parts := sort.StringSlice(strings.Split(website, "/"))
+	i := parts.Search("github.com")
+	if i == -1 {
+		dlog.Printf("Can't parse website '%s'", website)
+		return
+	}
+
+	owner := parts[i+1]
+	repo := parts[i+2]
+
+	var err error
+	var releases []GitHubRelease
+	if releases, err = getReleases(owner, repo); err != nil {
+		dlog.Printf("Error checking releases: %v", err)
+		return
+	}
+
+	version, _ := semver.ParseTolerant(w.Version())
+
+	if len(releases) > 0 && releases[0].Version.GT(version) {
+		release = releases[0]
+		available = true
+		dlog.Printf("Latest release: %v", release)
+	}
+
+	return
+}
+
 // GetConfirmation opens a confirmation dialog to ask the user to confirm
 // something.
 func (w *Workflow) GetConfirmation(prompt string, defaultYes bool) (confirmed bool, err error) {
@@ -503,6 +580,20 @@ func (w *Workflow) ShowMessage(message string) (err error) {
 }
 
 // support -------------------------------------------------------------------
+
+func (w *Workflow) plist() (p Plist, err error) {
+	if w.info.Version == "" {
+		var plist Plist
+		if plist, err = UnmarshalFile("info.plist"); err != nil {
+			dlog.Printf("Error loading plist: %v", err)
+			return
+		}
+		w.info = plist
+	}
+
+	p = w.info
+	return
+}
 
 // blockConfig is a struct used by Alfred to configure blocks
 type blockConfig struct {
