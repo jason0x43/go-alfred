@@ -226,6 +226,30 @@ func getPrefsDirectory() (string, error) {
 	return folder, nil
 }
 
+func loadPreferences() (prefs plist.Dict, err error) {
+	currentUser, _ := user.Current()
+
+	version := getAlfredVersion()
+	prefSuffix := ""
+	if version != "2" {
+		prefSuffix = "-" + version
+	}
+
+	var prefPlist *plist.Plist
+	prefFile := path.Join(currentUser.HomeDir, "Library", "Preferences",
+		"com.runningwithcrayons.Alfred-Preferences"+prefSuffix+".plist")
+	if prefPlist, err = plist.UnmarshalFile(prefFile); err != nil {
+		return
+	}
+
+	var ok bool
+	if prefs, ok = prefPlist.Root.(plist.Dict); !ok {
+		err = fmt.Errorf("Invalid plist root")
+	}
+
+	return
+}
+
 func build() {
 	// use go generate, along with custom build tools, to handle any auxiliary build steps
 	run("go", "generate")
@@ -279,9 +303,14 @@ func info() {
 
 	printField("Workflows", workflowsPath)
 
-	link, _ := getExistingLink()
-	if link != "" {
+	if link, _ := getExistingLink(); link != "" {
 		printField("This workflow", path.Base(link))
+	}
+
+	plistFile := path.Join("workflow", "info.plist")
+	if plistData, err := plist.UnmarshalFile(plistFile); err == nil {
+		info, _ := plistData.Root.(plist.Dict)
+		printField("Version", info["version"].(string))
 	}
 }
 
