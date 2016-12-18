@@ -7,11 +7,11 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path"
 	"sort"
 	"strings"
 	"text/template"
-
-	"github.com/blang/semver"
+	"time"
 )
 
 // ModKey is a modifier key (e.g., cmd, ctrl, alt)
@@ -42,6 +42,11 @@ type CommandDef struct {
 	Mods        map[ModKey]ItemMod
 	IsEnabled   bool
 	Arg         *ItemArg
+}
+
+var cache struct {
+	LastUpdateCheck time.Time
+	LatestRelease   GitHubRelease
 }
 
 // KeywordItem creates a new Item for a command definition
@@ -394,31 +399,48 @@ func (w *Workflow) Version() string {
 	return w.version
 }
 
-// UpdateAvailable returns a non-empty string if an update for this workflow is
-// available. The string contains the available version.
-func (w *Workflow) UpdateAvailable() (release GitHubRelease, available bool) {
-	website := w.Website()
-	parts := sort.StringSlice(strings.Split(website, "/"))
-	i := parts.Search("github.com")
-	if i == -1 {
-		dlog.Printf("Can't parse website '%s'", website)
-		return
+// UpdateAvailable returns the latest release on GitHub, and a boolean
+// indicating whether a newer release is available.
+func (w *Workflow) UpdateAvailable(checkNow bool) (release GitHubRelease, available bool) {
+	cacheFile := path.Join(w.CacheDir(), "workflow_cache.json")
+	if err := LoadJSON(cacheFile, &cache); err == nil {
+		dlog.Println("loaded cache")
 	}
 
-	owner := parts[i+1]
-	repo := parts[i+2]
+	if checkNow || time.Now().Sub(cache.LastUpdateCheck).Hours() >= 24.0 {
+		cache.LastUpdateCheck = time.Now()
 
-	var err error
-	var releases []GitHubRelease
-	if releases, err = getReleases(owner, repo); err != nil {
-		dlog.Printf("Error checking releases: %v", err)
-		return
+		website := w.Website()
+		parts := sort.StringSlice(strings.Split(website, "/"))
+		i := parts.Search("github.com")
+		if i == -1 {
+			dlog.Printf("Can't parse website '%s'", website)
+			return
+		}
+
+		owner := parts[i+1]
+		repo := parts[i+2]
+
+		var err error
+		var releases []GitHubRelease
+		if releases, err = getReleases(owner, repo); err != nil {
+			dlog.Printf("Error checking releases: %v", err)
+			return
+		}
+
+		if len(releases) > 0 {
+			cache.LatestRelease = releases[0]
+		} else {
+			cache.LatestRelease = GitHubRelease{}
+		}
+
+		if err := SaveJSON(cacheFile, &cache); err != nil {
+			dlog.Printf("Error saving cache: %s", err)
+		}
 	}
 
-	version, _ := semver.ParseTolerant(w.Version())
-
-	if len(releases) > 0 && releases[0].Version.GT(version) {
-		release = releases[0]
+	if isNewer, _ := cache.LatestRelease.IsNewer(w.Version()); isNewer {
+		release = cache.LatestRelease
 		available = true
 		dlog.Printf("Latest release: %v", release)
 	}
