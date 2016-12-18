@@ -89,13 +89,14 @@ type Action interface {
 
 // Workflow represents an Alfred workflow
 type Workflow struct {
-	name     string
-	bundleID string
-	cacheDir string
-	dataDir  string
-	website  string
-	version  string
-	info     Plist
+	UpdateIcon string
+	name       string
+	bundleID   string
+	cacheDir   string
+	dataDir    string
+	website    string
+	version    string
+	info       Plist
 }
 
 // OpenWorkflow returns a Workflow for a given directory. If the createDirs
@@ -286,6 +287,8 @@ func (w *Workflow) Run(commands []Command) {
 			items = append(items, Item{Title: fmt.Sprintf("No results")})
 		}
 
+		w.AddUpdateItem(&items)
+
 		w.SendToAlfred(items, data)
 
 	case "do":
@@ -294,30 +297,35 @@ func (w *Workflow) Run(commands []Command) {
 		// Note that in "do" mode only the "data" input is used
 
 		if err == nil {
-			var action Action
+			if keyword == "alfred.open" {
+				dlog.Printf("opening %s", data.Data)
+				err = exec.Command("open", data.Data).Run()
+			} else {
+				var action Action
 
-			for _, c := range commands {
-				def := c.About()
+				for _, c := range commands {
+					def := c.About()
 
-				// Skip disabled commands
-				if !def.IsEnabled {
-					continue
-				}
+					// Skip disabled commands
+					if !def.IsEnabled {
+						continue
+					}
 
-				if a, ok := c.(Action); ok {
-					dlog.Printf("Checking if '%s' == '%s'", a.About().Keyword,
-						keyword)
-					if def.Keyword == keyword {
-						action = a
-						break
+					if a, ok := c.(Action); ok {
+						dlog.Printf("Checking if '%s' == '%s'", a.About().Keyword,
+							keyword)
+						if def.Keyword == keyword {
+							action = a
+							break
+						}
 					}
 				}
-			}
 
-			if action == nil {
-				err = fmt.Errorf("No valid command in '%s'", arg)
-			} else {
-				output, err = action.Do(data.Data)
+				if action == nil {
+					err = fmt.Errorf("No valid command in '%s'", arg)
+				} else {
+					output, err = action.Do(data.Data)
+				}
 			}
 		}
 
@@ -343,6 +351,28 @@ func (w *Workflow) AddPassword(name, password string) (err error) {
 		dlog.Printf("Error adding password: %s", string(out))
 	}
 	return
+}
+
+// AddUpdateItem performs an update check and adds an update item to the given
+// items list if one is available.
+func (w *Workflow) AddUpdateItem(items *Items) {
+	icon := "icon.png"
+	if w.UpdateIcon != "" {
+		icon = w.UpdateIcon
+	}
+
+	if latest, available := w.UpdateAvailable(); available {
+		*items = append([]Item{Item{
+			Title:    fmt.Sprintf("Update available: %v", latest.Version),
+			Subtitle: fmt.Sprintf("You have %s", w.Version()),
+			Icon:     icon,
+			Arg: &ItemArg{
+				Keyword: "alfred.open",
+				Mode:    ModeDo,
+				Data:    latest.URL,
+			},
+		}}, *items...)
+	}
 }
 
 // CacheDir returns the cache directory for a workflow.
@@ -399,53 +429,16 @@ func (w *Workflow) Version() string {
 	return w.version
 }
 
-// UpdateAvailable returns the latest release on GitHub, and a boolean
-// indicating whether a newer release is available.
-func (w *Workflow) UpdateAvailable(checkNow bool) (release GitHubRelease, available bool) {
-	cacheFile := path.Join(w.CacheDir(), "workflow_cache.json")
-	if err := LoadJSON(cacheFile, &cache); err == nil {
-		dlog.Println("loaded cache")
-	}
+// UpdateAvailable checks once a day whether a newer version of this workflow
+// is available on GitHub.
+func (w *Workflow) UpdateAvailable() (release GitHubRelease, available bool) {
+	return w.updateAvailable(false)
+}
 
-	if checkNow || time.Now().Sub(cache.LastUpdateCheck).Hours() >= 24.0 {
-		cache.LastUpdateCheck = time.Now()
-
-		website := w.Website()
-		parts := sort.StringSlice(strings.Split(website, "/"))
-		i := parts.Search("github.com")
-		if i == -1 {
-			dlog.Printf("Can't parse website '%s'", website)
-			return
-		}
-
-		owner := parts[i+1]
-		repo := parts[i+2]
-
-		var err error
-		var releases []GitHubRelease
-		if releases, err = getReleases(owner, repo); err != nil {
-			dlog.Printf("Error checking releases: %v", err)
-			return
-		}
-
-		if len(releases) > 0 {
-			cache.LatestRelease = releases[0]
-		} else {
-			cache.LatestRelease = GitHubRelease{}
-		}
-
-		if err := SaveJSON(cacheFile, &cache); err != nil {
-			dlog.Printf("Error saving cache: %s", err)
-		}
-	}
-
-	if isNewer, _ := cache.LatestRelease.IsNewer(w.Version()); isNewer {
-		release = cache.LatestRelease
-		available = true
-		dlog.Printf("Latest release: %v", release)
-	}
-
-	return
+// UpdateAvailableNow checks immediately whether a newer version of this
+// workflow is available on GitHub.
+func (w *Workflow) UpdateAvailableNow() (release GitHubRelease, available bool) {
+	return w.updateAvailable(true)
 }
 
 // GetConfirmation opens a confirmation dialog to ask the user to confirm
@@ -636,4 +629,51 @@ type workflowData struct {
 	Mod     ModKey   `json:"mod,omitempty"`
 	// Data is keyword-specific data
 	Data string `json:"data,omitempty"`
+}
+
+func (w *Workflow) updateAvailable(checkNow bool) (release GitHubRelease, available bool) {
+	cacheFile := path.Join(w.CacheDir(), "workflow_cache.json")
+	if err := LoadJSON(cacheFile, &cache); err == nil {
+		dlog.Println("loaded cache")
+	}
+
+	if checkNow || time.Now().Sub(cache.LastUpdateCheck).Hours() >= 24.0 {
+		cache.LastUpdateCheck = time.Now()
+
+		website := w.Website()
+		parts := sort.StringSlice(strings.Split(website, "/"))
+		i := parts.Search("github.com")
+		if i == -1 {
+			dlog.Printf("Can't parse website '%s'", website)
+			return
+		}
+
+		owner := parts[i+1]
+		repo := parts[i+2]
+
+		var err error
+		var releases []GitHubRelease
+		if releases, err = getReleases(owner, repo); err != nil {
+			dlog.Printf("Error checking releases: %v", err)
+			return
+		}
+
+		if len(releases) > 0 {
+			cache.LatestRelease = releases[0]
+		} else {
+			cache.LatestRelease = GitHubRelease{}
+		}
+
+		if err := SaveJSON(cacheFile, &cache); err != nil {
+			dlog.Printf("Error saving cache: %s", err)
+		}
+	}
+
+	if isNewer, _ := cache.LatestRelease.IsNewer(w.Version()); isNewer {
+		release = cache.LatestRelease
+		available = true
+		dlog.Printf("Latest release: %v", release)
+	}
+
+	return
 }
