@@ -30,6 +30,16 @@ type GitHubRelease struct {
 	} `json:"assets"`
 }
 
+// IsNewer returns true if this release is newer than a given semver string
+func (g *GitHubRelease) IsNewer(ver string) (isNewer bool, err error) {
+	var version semver.Version
+	if version, err = semver.ParseTolerant(ver); err != nil {
+		return
+	}
+	isNewer = g.Version.GT(version)
+	return
+}
+
 func getReleases(owner, repo string) (releases []GitHubRelease, err error) {
 	var data []byte
 	if data, err = get(fmt.Sprintf("https://api.github.com/repos/%s/%s/releases", owner, repo), nil); err != nil {
