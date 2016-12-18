@@ -75,7 +75,7 @@ func (d *Decoder) Decode(plist *Plist) (err error) {
 
 	if isEnd {
 		// empty plist
-		dlog.Printf("empty plist")
+		// dlog.Printf("empty plist")
 		return
 	}
 
@@ -85,14 +85,14 @@ func (d *Decoder) Decode(plist *Plist) (err error) {
 		if err != nil {
 			return err
 		}
-		dlog.Printf("read dict: %s", d)
+		// dlog.Printf("read dict: %s", d)
 		plist.Root = d
 	case "array":
 		a, err := d.decodeArray(se)
 		if err != nil {
 			return err
 		}
-		dlog.Printf("read array: %s", a)
+		// dlog.Printf("read array: %s", a)
 		plist.Root = a
 	default:
 		return fmt.Errorf("plist: bad root element: must be dict or array")
@@ -102,7 +102,7 @@ func (d *Decoder) Decode(plist *Plist) (err error) {
 }
 
 func (d *Decoder) decodeStartElement(expected string) (start xml.StartElement, err error) {
-	dlog.Printf("reading start element '%s'", expected)
+	// dlog.Printf("reading start element '%s'", expected)
 
 	var t xml.Token
 	if t, err = d.nextElement(); err != nil {
@@ -120,7 +120,7 @@ func (d *Decoder) decodeStartElement(expected string) (start xml.StartElement, e
 }
 
 func (d *Decoder) decodeStartOrEndElement(expected string, s xml.StartElement) (start xml.StartElement, end xml.EndElement, isEnd bool, err error) {
-	dlog.Printf("reading start element '%s' or end element", expected)
+	// dlog.Printf("reading start element '%s' or end element", expected)
 
 	var t xml.Token
 	if t, err = d.nextElement(); err != nil {
@@ -131,7 +131,7 @@ func (d *Decoder) decodeStartOrEndElement(expected string, s xml.StartElement) (
 	if start, ok = t.(xml.StartElement); !ok {
 		if end, ok = t.(xml.EndElement); ok {
 			if end.Name.Local == s.Name.Local {
-				dlog.Printf("  read end element '%s'", end)
+				// dlog.Printf("  read end element '%s'", end)
 				isEnd = true
 				return
 			}
@@ -147,12 +147,12 @@ func (d *Decoder) decodeStartOrEndElement(expected string, s xml.StartElement) (
 		return
 	}
 
-	dlog.Printf("  read start element '%#v'", start)
+	// dlog.Printf("  read start element '%#v'", start)
 	return
 }
 
 func (d *Decoder) decodeDict(start xml.StartElement) (dict Dict, err error) {
-	dlog.Printf("reading dict")
+	// dlog.Printf("reading dict")
 
 	// <key>
 	var se xml.StartElement
@@ -187,7 +187,7 @@ func (d *Decoder) decodeDict(start xml.StartElement) (dict Dict, err error) {
 		}
 
 		dict[keyName] = val
-		dlog.Printf("set dict[%s] = %#v", keyName, val)
+		// dlog.Printf("set dict[%s] = %#v", keyName, val)
 
 		// get the next key
 		if se, _, isEnd, err = d.decodeStartOrEndElement("key", start); err != nil {
@@ -200,12 +200,12 @@ func (d *Decoder) decodeDict(start xml.StartElement) (dict Dict, err error) {
 		}
 	}
 
-	dlog.Printf("filled in dict: %s", dict)
+	// dlog.Printf("filled in dict: %s", dict)
 	return
 }
 
 func (d *Decoder) decodeArray(start xml.StartElement) (arr Array, err error) {
-	dlog.Printf("reading array")
+	// dlog.Printf("reading array")
 
 	var se xml.StartElement
 	var isEnd bool
@@ -272,7 +272,7 @@ func (d *Decoder) decodeAny(start xml.StartElement) (tok xml.Token, err error) {
 }
 
 func (d *Decoder) decodeString(start xml.StartElement) (str string, err error) {
-	dlog.Printf("decoding string in <%s>", start.Name)
+	// dlog.Printf("decoding string in <%s>", start.Name)
 
 	var t xml.Token
 	if t, err = d.decodeAny(start); err != nil {
@@ -280,7 +280,7 @@ func (d *Decoder) decodeString(start xml.StartElement) (str string, err error) {
 	}
 
 	if t == nil {
-		dlog.Printf("read empty string")
+		// dlog.Printf("read empty string")
 		return
 	}
 
@@ -288,14 +288,14 @@ func (d *Decoder) decodeString(start xml.StartElement) (str string, err error) {
 	var ok bool
 	if ee, ok = t.(xml.EndElement); ok {
 		if ee.Name == start.Name {
-			dlog.Printf("read empty string")
+			// dlog.Printf("read empty string")
 			return
 		}
 		err = fmt.Errorf("plist: unexpected end tag %v", ee)
 		return
 	}
 
-	dlog.Printf("read token '%#v'", t)
+	// dlog.Printf("read token '%#v'", t)
 
 	var cd xml.CharData
 	if cd, ok = t.(xml.CharData); !ok {
@@ -303,7 +303,7 @@ func (d *Decoder) decodeString(start xml.StartElement) (str string, err error) {
 		return
 	}
 
-	dlog.Printf("read string '%s'", string(cd))
+	// dlog.Printf("read string '%s'", string(cd))
 
 	return string(cd), nil
 }
@@ -326,19 +326,19 @@ func (d *Decoder) decodeDate(start xml.StartElement) (t time.Time, err error) {
 		return
 	}
 
-	dlog.Printf("read date: %s", str)
+	// dlog.Printf("read date: %s", str)
 
 	return time.Parse(time.RFC3339, str)
 }
 
 func (d *Decoder) decodeData(start xml.StartElement) (data []byte, err error) {
-	dlog.Printf("reading data")
+	// dlog.Printf("reading data")
 	var str string
 	if str, err = d.decodeString(start); err != nil || str == "" {
 		return
 	}
 
-	dlog.Printf("read data: %s", str)
+	// dlog.Printf("read data: %s", str)
 
 	return base64.StdEncoding.DecodeString(str)
 }
@@ -349,7 +349,7 @@ func (d *Decoder) decodeInteger(start xml.StartElement) (i int64, err error) {
 		return
 	}
 
-	dlog.Printf("read integer: %s", str)
+	// dlog.Printf("read integer: %s", str)
 
 	return strconv.ParseInt(str, 10, 64)
 }
@@ -360,7 +360,7 @@ func (d *Decoder) decodeReal(start xml.StartElement) (f float64, err error) {
 		return
 	}
 
-	dlog.Printf("read real: %s", str)
+	// dlog.Printf("read real: %s", str)
 
 	return strconv.ParseFloat(str, 64)
 }

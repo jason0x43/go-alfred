@@ -150,6 +150,7 @@ func (w *Workflow) Run(commands []Command) {
 	var mode ModeType
 	var final bool
 	var arg string
+	var rawArg string
 	var data workflowData
 	var keyword string
 	var prefix string
@@ -172,6 +173,7 @@ func (w *Workflow) Run(commands []Command) {
 		// If there are 2 args, the second must be a workflow data object. Use
 		// the first as `arg` even if the data object contains an Arg value.
 		arg = args[0]
+		rawArg = args[0]
 		if args[1] != "" {
 			if err = json.Unmarshal([]byte(args[1]), &data); err != nil {
 				dlog.Printf("Couldn't parse second arg as data: %v", err)
@@ -266,10 +268,14 @@ func (w *Workflow) Run(commands []Command) {
 					if _, ok := c.(Filter); ok || def.Arg != nil {
 						dlog.Printf("Adding menu item for '%s'", def.Keyword)
 						item := def.KeywordItem()
-						item.UID = fmt.Sprintf("%s.%s", w.bundleID, def.Keyword)
 						items = append(items, item)
 					}
 				}
+			}
+
+			// Only add the update item if the query matches "update"
+			if FuzzyMatches("update", rawArg) {
+				w.AddUpdateItem(&items)
 			}
 
 			if err == nil {
@@ -286,8 +292,6 @@ func (w *Workflow) Run(commands []Command) {
 		} else if len(items) == 0 {
 			items = append(items, Item{Title: fmt.Sprintf("No results")})
 		}
-
-		w.AddUpdateItem(&items)
 
 		w.SendToAlfred(items, data)
 
@@ -356,22 +360,22 @@ func (w *Workflow) AddPassword(name, password string) (err error) {
 // AddUpdateItem performs an update check and adds an update item to the given
 // items list if one is available.
 func (w *Workflow) AddUpdateItem(items *Items) {
-	icon := "icon.png"
-	if w.UpdateIcon != "" {
-		icon = w.UpdateIcon
-	}
-
 	if latest, available := w.UpdateAvailable(); available {
-		*items = append([]Item{Item{
+		item := Item{
 			Title:    fmt.Sprintf("Update available: %v", latest.Version),
 			Subtitle: fmt.Sprintf("You have %s", w.Version()),
-			Icon:     icon,
 			Arg: &ItemArg{
 				Keyword: "alfred.open",
 				Mode:    ModeDo,
 				Data:    latest.URL,
 			},
-		}}, *items...)
+		}
+
+		if w.UpdateIcon != "" {
+			item.Icon = w.UpdateIcon
+		}
+
+		*items = append([]Item{item}, *items...)
 	}
 }
 
