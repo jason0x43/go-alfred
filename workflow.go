@@ -89,14 +89,15 @@ type Action interface {
 
 // Workflow represents an Alfred workflow
 type Workflow struct {
-	UpdateIcon string
-	name       string
-	bundleID   string
-	cacheDir   string
-	dataDir    string
-	website    string
-	version    string
-	info       Plist
+	UpdateIcon  string
+	name        string
+	bundleID    string
+	cacheDir    string
+	dataDir     string
+	workflowDir string
+	website     string
+	version     string
+	info        Plist
 }
 
 // OpenWorkflow returns a Workflow for a given directory. If the createDirs
@@ -117,10 +118,11 @@ func OpenWorkflow(workflowDir string, createDirs bool) (w Workflow, err error) {
 	}
 
 	w = Workflow{
-		name:     name,
-		bundleID: bundleID,
-		cacheDir: cacheDir,
-		dataDir:  dataDir,
+		name:        name,
+		bundleID:    bundleID,
+		cacheDir:    cacheDir,
+		dataDir:     dataDir,
+		workflowDir: workflowDir,
 	}
 
 	return
@@ -414,6 +416,11 @@ func (w *Workflow) Website() string {
 	}
 
 	return w.website
+}
+
+// WorkflowDir returns a workflow's location.
+func (w *Workflow) WorkflowDir() string {
+	return w.workflowDir
 }
 
 // Version returns a workflow's website URL.
