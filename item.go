@@ -225,5 +225,5 @@ func (b byFuzzyScore) Swap(i, j int) {
 }
 
 func (b byFuzzyScore) Less(i, j int) bool {
-	return b[i].fuzzyScore > b[j].fuzzyScore
+	return b[i].fuzzyScore < b[j].fuzzyScore
 }
