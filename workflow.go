@@ -604,7 +604,7 @@ func (w *Workflow) ShowMessage(message string) (err error) {
 // support -------------------------------------------------------------------
 
 func (w *Workflow) plist() (p Plist, err error) {
-	if w.info["version"] == "" {
+	if w.info["version"] == nil {
 		plist := LoadPlist("info.plist")
 		w.info = plist
 	}
