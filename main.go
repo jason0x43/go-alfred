@@ -14,8 +14,6 @@ import (
 	"path"
 	"regexp"
 	"strings"
-
-	"github.com/jason0x43/go-plist"
 )
 
 var dlog = log.New(os.Stderr, "[alfred] ", log.LstdFlags)
@@ -135,12 +133,11 @@ func init() {
 	if version == "" {
 		// If alfred_version wasn't present in the environment, initialize it manually
 
-		pl, err := plist.UnmarshalFile("info.plist")
-		if err != nil {
-			dlog.Fatal("Error opening workflow plist:", err)
+		plFile := path.Join("workflow", "info.plist")
+		if !fileExists(plFile) {
+			plFile = "info.plist"
 		}
-
-		plData := pl.Root.(plist.Dict)
+		plData := LoadPlist(plFile)
 		bundleID := plData["bundleid"].(string)
 		name := plData["name"].(string)
 
@@ -179,6 +176,7 @@ func init() {
 		}
 
 		var u *user.User
+		var err error
 		if u, err = user.Current(); err != nil {
 			dlog.Fatal("Error getting user:", err)
 		}
@@ -232,4 +230,9 @@ func parseDialogResponse(response string) (button string, text string) {
 	}
 	dlog.Printf(`Parsed response: button=%s, text=%s`, button, text)
 	return
+}
+
+func fileExists(dir string) bool {
+	stat, err := os.Stat(dir)
+	return !os.IsNotExist(err) && !stat.IsDir()
 }

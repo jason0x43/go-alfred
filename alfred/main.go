@@ -39,6 +39,8 @@ The available commands are:
 		Package the workflow for distribution. This will create a file named
 		<filename>.alfredworkflow, where "filename" is the basename of the
 		workflow directory.
+	release
+		Prepare the repo for release.
 	unlink
 		Unlink the "workflow" subdirectory from Alfred's preferences directory,
 		uninstalling it.
@@ -47,11 +49,9 @@ The available commands are:
 package main
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"os"
 	"os/exec"
 	"os/user"
@@ -59,7 +59,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/jason0x43/go-plist"
+	"github.com/Masterminds/semver"
+	"github.com/jason0x43/go-alfred"
 )
 
 var workflowName string
@@ -83,10 +84,7 @@ var commands = []command{
 }
 
 func main() {
-	prefsDir, err := getPrefsDirectory()
-	if err != nil {
-		die(err)
-	}
+	prefsDir := getPrefsDirectory()
 	workflowsPath = path.Join(prefsDir, "Alfred.alfredpreferences/workflows")
 
 	if len(os.Args) == 1 {
@@ -134,16 +132,13 @@ func main() {
 		link()
 	case "pack":
 		pack()
+	case "release":
+		release()
 	case "unlink":
 		unlink()
 	default:
 		println("Unknown command:", os.Args[1])
 	}
-}
-
-func die(err error) {
-	println("Error:", err.Error())
-	os.Exit(1)
 }
 
 // getAlfredVersion returns the highest installed version of Alfred. It uses a very naive algorithm.
@@ -168,10 +163,9 @@ func getAlfredVersion() string {
 }
 
 func run(cmd string, args ...string) {
-	output, err := exec.Command(cmd, args...).CombinedOutput()
-	if err != nil {
+	if output, err := exec.Command(cmd, args...).CombinedOutput(); err != nil {
 		println(string(output))
-		die(err)
+		panic(err)
 	}
 }
 
@@ -181,7 +175,7 @@ func runIfFile(file, cmd string, args ...string) {
 	}
 }
 
-func getPrefsDirectory() (string, error) {
+func getPrefsDirectory() string {
 	currentUser, _ := user.Current()
 
 	version := getAlfredVersion()
@@ -192,16 +186,7 @@ func getPrefsDirectory() (string, error) {
 
 	prefFile := path.Join(currentUser.HomeDir, "Library", "Preferences",
 		"com.runningwithcrayons.Alfred-Preferences"+prefSuffix+".plist")
-	prefPlist, err := plist.UnmarshalFile(prefFile)
-	if err != nil {
-		return "", err
-	}
-
-	preferences, ok := prefPlist.Root.(plist.Dict)
-	if !ok {
-		log.Printf("Invalid info.plist file")
-		return "", err
-	}
+	preferences := alfred.LoadPlist(prefFile)
 
 	var folder string
 
@@ -214,19 +199,20 @@ func getPrefsDirectory() (string, error) {
 		folder = path.Join(currentUser.HomeDir, "Library", "Application Support", "Alfred "+version)
 	}
 
-	info, err := os.Stat(folder)
-	if err != nil {
-		return "", err
+	var info os.FileInfo
+	var err error
+	if info, err = os.Stat(folder); err != nil {
+		panic(err)
 	}
 
 	if !info.IsDir() {
-		return "", errors.New(folder + " is not a directory")
+		panic(fmt.Errorf("%s is not a directory", folder))
 	}
 
-	return folder, nil
+	return folder
 }
 
-func loadPreferences() (prefs plist.Dict, err error) {
+func loadPreferences() (prefs alfred.Plist) {
 	currentUser, _ := user.Current()
 
 	version := getAlfredVersion()
@@ -235,19 +221,9 @@ func loadPreferences() (prefs plist.Dict, err error) {
 		prefSuffix = "-" + version
 	}
 
-	var prefPlist *plist.Plist
 	prefFile := path.Join(currentUser.HomeDir, "Library", "Preferences",
 		"com.runningwithcrayons.Alfred-Preferences"+prefSuffix+".plist")
-	if prefPlist, err = plist.UnmarshalFile(prefFile); err != nil {
-		return
-	}
-
-	var ok bool
-	if prefs, ok = prefPlist.Root.(plist.Dict); !ok {
-		err = fmt.Errorf("Invalid plist root")
-	}
-
-	return
+	return alfred.LoadPlist(prefFile)
 }
 
 func build() {
@@ -308,16 +284,14 @@ func info() {
 	}
 
 	plistFile := path.Join("workflow", "info.plist")
-	if plistData, err := plist.UnmarshalFile(plistFile); err == nil {
-		info, _ := plistData.Root.(plist.Dict)
-		printField("Version", info["version"].(string))
-	}
+	info := alfred.LoadPlist(plistFile)
+	printField("Version", info["version"].(string))
 }
 
 func link() {
 	existing, err := getExistingLink()
 	if err != nil {
-		die(err)
+		panic(err)
 	}
 
 	if existing != "" {
@@ -334,17 +308,59 @@ func link() {
 }
 
 func pack() {
+	pwd, _ := filepath.Abs(".")
 	if err := os.Chdir(buildDir); err != nil {
-		die(err)
+		panic(err)
 	}
 	zipfile := path.Join("..", zipName)
 	run("zip", "-r", zipfile, ".")
+	if err := os.Chdir(pwd); err != nil {
+		panic(err)
+	}
+}
+
+func release() {
+	plistFile := path.Join("workflow", "info.plist")
+	info := alfred.LoadPlist(plistFile)
+	var version semver.Version
+	var releaseVersion string
+
+	if len(os.Args) > 2 {
+		version = *semver.MustParse(os.Args[2])
+		releaseVersion = version.String()
+	} else {
+		version = *semver.MustParse(info["version"].(string))
+		if version.Prerelease() != "" {
+			releaseVer, _ := version.SetPrerelease("")
+			releaseVersion = releaseVer.String()
+		} else {
+			panic("Workflow version must be a prerelease, or a new version must be specified")
+		}
+	}
+
+	fmt.Printf("Updating version to %s for release\n", releaseVersion)
+	info["version"] = releaseVersion
+	alfred.SavePlist(plistFile, info)
+	run("git", "commit", "-a", "-m", fmt.Sprintf("Update version to %s for release", releaseVersion))
+	run("git", "tag", releaseVersion)
+	fmt.Printf("Packaging version %s\n", releaseVersion)
+	build()
+	pack()
+
+	nextVer, _ := version.IncMinor().SetPrerelease("pre")
+	nextVersion := nextVer.String()
+	fmt.Printf("Updating version to %s\n", nextVersion)
+	info["version"] = nextVersion
+	alfred.SavePlist(plistFile, info)
+	run("git", "commit", "-a", "-m", fmt.Sprintf("Update version to %s", nextVersion))
+
+	fmt.Printf("Done!\n")
 }
 
 func unlink() {
 	existing, err := getExistingLink()
 	if err != nil {
-		die(err)
+		panic(err)
 	}
 
 	if existing == "" {

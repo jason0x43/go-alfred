@@ -47,8 +47,16 @@ func fuzzyScore(val string, test string) float64 {
 	// The score component based on how far spread out the matching characters
 	// are. If the characters are contiguous, this will be 0.
 	sizeDelta := len(val) - len(test)
-	sepScore := float64((end-start)-len(test)) / float64(sizeDelta)
-	score += 0.4 * sepScore
+	sepScore := 0.0
+	if sizeDelta > 0 {
+		sepScore = float64((end-start)-len(test)) / float64(sizeDelta)
+		score += 0.4 * sepScore
+	}
+
+	// dlog.Print("Sep score for ", val, ": ", sepScore)
+	// dlog.Print("  end: ", end)
+	// dlog.Print("  start: ", start)
+	// dlog.Print("  sizeDelta: ", sizeDelta)
 
 	// The score component based on the ratio of test string length to the val string length
 	matchScore := 1.0 - (float64(len(test)) / float64(len(val)))

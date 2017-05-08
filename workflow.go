@@ -408,10 +408,8 @@ func (w *Workflow) Website() string {
 	}
 
 	if plist, err := w.plist(); err == nil {
-		if dict, ok := plist.Root.(Dict); ok {
-			if webaddress, ok := dict["webaddress"]; ok {
-				w.website = webaddress.(string)
-			}
+		if webaddress, ok := plist["webaddress"]; ok {
+			w.website = webaddress.(string)
 		}
 	}
 
@@ -430,10 +428,8 @@ func (w *Workflow) Version() string {
 	}
 
 	if plist, err := w.plist(); err == nil {
-		if dict, ok := plist.Root.(Dict); ok {
-			if version, ok := dict["version"]; ok {
-				w.version = version.(string)
-			}
+		if version, ok := plist["version"]; ok {
+			w.version = version.(string)
 		}
 	}
 
@@ -608,12 +604,8 @@ func (w *Workflow) ShowMessage(message string) (err error) {
 // support -------------------------------------------------------------------
 
 func (w *Workflow) plist() (p Plist, err error) {
-	if w.info.Version == "" {
-		var plist Plist
-		if plist, err = UnmarshalFile("info.plist"); err != nil {
-			dlog.Printf("Error loading plist: %v", err)
-			return
-		}
+	if w.info["version"] == "" {
+		plist := LoadPlist("info.plist")
 		w.info = plist
 	}
 
