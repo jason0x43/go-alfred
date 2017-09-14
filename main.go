@@ -144,27 +144,33 @@ func init() {
 		os.Setenv("alfred_workflow_bundleid", bundleID)
 		os.Setenv("alfred_workflow_name", name)
 
+		dlog.Printf("Looking for app in /Applications")
 		var version string
 		files, _ := ioutil.ReadDir("/Applications")
 		var appname string
 		for _, file := range files {
 			fname := file.Name()
 			if fname[0] < 'A' {
+				dlog.Printf("Ignoring %s", fname)
 				continue
 			}
 			if fname[0] > 'A' {
+				dlog.Printf("Ignoring %s", fname)
 				break
 			}
 			if strings.HasPrefix(fname, "Alfred ") && fname > appname {
+				dlog.Printf("Using %s", fname)
 				appname = fname
 			}
 		}
 
 		if appname != "" {
+			dlog.Printf("Found app at %s", appname)
 			appname = strings.TrimSuffix(appname, ".app")
 			parts := strings.Split(appname, " ")
 			if len(parts) == 2 {
 				version = parts[1]
+				dlog.Printf("Using app version %s", version)
 				os.Setenv("alfred_short_version", version)
 			}
 		} else {
