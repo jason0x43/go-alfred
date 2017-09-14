@@ -147,6 +147,7 @@ func init() {
 		dlog.Printf("Looking for app in /Applications")
 		var version string
 		files, _ := ioutil.ReadDir("/Applications")
+		matcher := regexp.MustCompile(`Alfred( \d+)?.app`)
 		var appname string
 		for _, file := range files {
 			fname := file.Name()
@@ -158,7 +159,7 @@ func init() {
 				dlog.Printf("Ignoring %s", fname)
 				break
 			}
-			if strings.HasPrefix(fname, "Alfred ") && fname > appname {
+			if matcher.MatchString(fname) && fname > appname {
 				dlog.Printf("Using %s", fname)
 				appname = fname
 			}
