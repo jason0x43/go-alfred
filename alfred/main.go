@@ -49,6 +49,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"os"
 	"os/exec"
 	"os/user"
@@ -80,9 +81,18 @@ var commands = []command{
 	command{"unlink", "deactivate this workflow"},
 }
 
+var dlog = log.New(os.Stderr, "[alfred] ", log.LstdFlags)
+
 func main() {
+	if os.Getenv("alfred_debug") != "1" {
+		dlog.SetOutput(ioutil.Discard)
+		dlog.SetFlags(0)
+	}
+
 	prefsDir := getPrefsDirectory()
+	dlog.Printf("prefs dir: %s", prefsDir)
 	workflowsPath = path.Join(prefsDir, "Alfred.alfredpreferences/workflows")
+	dlog.Printf("workflows path: %s", workflowsPath)
 
 	if len(os.Args) == 1 {
 		println("usage:", os.Args[0], "<command>")
@@ -107,6 +117,7 @@ func main() {
 	}
 
 	if !dirExists(path.Join("workflow")) {
+		dlog.Printf("Didn't see workflow/ in cwd, going up...")
 		os.Chdir("..")
 		if !dirExists("workflow") {
 			println("You're not in a workflow.")
@@ -117,6 +128,7 @@ func main() {
 	workflowPath, _ = filepath.Abs(".")
 	workflowName = path.Base(workflowPath)
 	zipName = workflowName + ".alfredworkflow"
+	dlog.Printf("zipName: %s", zipName)
 
 	switch os.Args[1] {
 	case "build":
@@ -224,6 +236,8 @@ func loadPreferences() (prefs alfred.Plist) {
 }
 
 func build() {
+	dlog.Printf("Building the workflow...")
+
 	// use go generate, along with custom build tools, to handle any auxiliary build steps
 	run("go", "generate")
 
@@ -235,6 +249,7 @@ func build() {
 }
 
 func clean() {
+	dlog.Printf("Cleaning the workflow...")
 	run("rm", "workflow/"+workflowName)
 	run("rm", zipName)
 }
@@ -268,6 +283,7 @@ func getExistingLink() (string, error) {
 }
 
 func info() {
+	dlog.Printf("Getting workflow info...")
 	width := -15
 
 	printField := func(name, value string) {
@@ -286,6 +302,7 @@ func info() {
 }
 
 func link() {
+	dlog.Printf("Linking workflow...")
 	existing, err := getExistingLink()
 	if err != nil {
 		panic(err)
@@ -299,17 +316,21 @@ func link() {
 	uuidgen, _ := exec.Command("uuidgen").Output()
 	uuid := strings.TrimSpace(string(uuidgen))
 	target := path.Join(workflowsPath, "user.workflow."+string(uuid))
+	dlog.Printf("Creating new link to target %s", target)
 	buildPath := path.Join(workflowPath, buildDir)
+	dlog.Printf("Build path is %s", buildPath)
 	run("ln", "-s", buildPath, target)
 	println("created link", filepath.Base(target))
 }
 
 func pack() {
+	dlog.Printf("Packing workflow...")
 	pwd, _ := filepath.Abs(".")
 	if err := os.Chdir(buildDir); err != nil {
 		panic(err)
 	}
 	zipfile := path.Join("..", zipName)
+	dlog.Printf("Creating archive %s", zipfile)
 	run("zip", "-r", zipfile, ".")
 	if err := os.Chdir(pwd); err != nil {
 		panic(err)
@@ -317,7 +338,9 @@ func pack() {
 }
 
 func release() {
+	dlog.Printf("Releasing workflow...")
 	plistFile := path.Join("workflow", "info.plist")
+	dlog.Printf("Reading from plist file %s", plistFile)
 	info := alfred.LoadPlist(plistFile)
 	var version semver.Version
 	var releaseVersion string
@@ -325,11 +348,14 @@ func release() {
 	if len(os.Args) > 2 {
 		version = *semver.MustParse(os.Args[2])
 		releaseVersion = version.String()
+		dlog.Printf("Using user-provided version: %s", releaseVersion)
 	} else {
 		version = *semver.MustParse(info["version"].(string))
+		dlog.Printf("Using version from info.plist: %s", info["version"].(string))
 		if version.Prerelease() != "" {
 			releaseVer, _ := version.SetPrerelease("")
 			releaseVersion = releaseVer.String()
+			dlog.Printf("Release version is: %s", releaseVersion)
 		} else {
 			panic("Workflow version must be a prerelease, or a new version must be specified")
 		}
@@ -338,8 +364,11 @@ func release() {
 	fmt.Printf("Updating version to %s for release\n", releaseVersion)
 	info["version"] = releaseVersion
 	alfred.SavePlist(plistFile, info)
+	dlog.Printf("Saved plist")
 	run("git", "commit", "-a", "-m", fmt.Sprintf("Update version to %s for release", releaseVersion))
+	dlog.Printf("Commited changes to repo")
 	run("git", "tag", releaseVersion)
+	dlog.Printf("Tagged release")
 	fmt.Printf("Packaging version %s\n", releaseVersion)
 	build()
 	pack()
@@ -355,6 +384,7 @@ func release() {
 }
 
 func unlink() {
+	dlog.Printf("Unlinkin workflow...")
 	existing, err := getExistingLink()
 	if err != nil {
 		panic(err)
