@@ -1,51 +1,48 @@
-/*
+// The alfred command can be used to manage Go-based Alfred workflows.
+//
+// The command must be run from a workflow directory, a directory containing a
+// "workflow" subdirectory. The basename of the workflow directory is the
+// workflow's filename. A typical layout would look like:
+//
+// 	my-workflow/
+// 		README.md
+// 		LICENSE.txt
+// 		main.go
+// 		workflow/
+// 			info.plist
+// 			icon.png
+//
+// Installation:
+//
+// 	go install github.com/jason0x43/go-alfred/alfred
+//
+// Usage:
+//
+//     alfred [command]
+//
+// The available commands are:
+//
+// 	build
+// 		Build the workflow executable and output it into the "workflow"
+// 		subdirectory.
+// 	clean
+// 		Delete the compiled workflow executable and the workflow distributable
+// 		package.
+// 	info
+// 		Display information about the workflow.
+// 	link
+// 		Link the "workflow" subdirectory into Alfred's preferences directory,
+// 		installing it.
+// 	pack
+// 		Package the workflow for distribution. This will create a file named
+// 		<filename>.alfredworkflow, where "filename" is the basename of the
+// 		workflow directory.
+// 	release
+// 		Prepare the repo for release.
+// 	unlink
+// 		Unlink the "workflow" subdirectory from Alfred's preferences directory,
+// 		uninstalling it.
 
-The alfred command can be used to manage Go-based Alfred workflows.
-
-The command must be run from a workflow directory, a directory containing a
-"workflow" subdirectory. The basename of the workflow directory is the
-workflow's filename. A typical layout would look like:
-
-	my-workflow/
-		README.md
-		LICENSE.txt
-		main.go
-		workflow/
-			info.plist
-			icon.png
-
-Installation:
-
-	go install github.com/jason0x43/go-alfred/alfred
-
-Usage:
-
-    alfred [command]
-
-The available commands are:
-
-	build
-		Build the workflow executable and output it into the "workflow"
-		subdirectory.
-	clean
-		Delete the compiled workflow executable and the workflow distributable
-		package.
-	info
-		Display information about the workflow.
-	link
-		Link the "workflow" subdirectory into Alfred's preferences directory,
-		installing it.
-	pack
-		Package the workflow for distribution. This will create a file named
-		<filename>.alfredworkflow, where "filename" is the basename of the
-		workflow directory.
-	release
-		Prepare the repo for release.
-	unlink
-		Unlink the "workflow" subdirectory from Alfred's preferences directory,
-		uninstalling it.
-
-*/
 package main
 
 import (
