@@ -45,6 +45,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -228,12 +229,23 @@ func loadPreferences() (prefs alfred.Plist) {
 }
 
 func build() {
+	command := flag.NewFlagSet("build", flag.ExitOnError)
+	help := command.Bool("h", false, "show this message")
+	all := command.Bool("a", false, "build all dependencies")
+	command.Parse(os.Args[2:])
+
+	if *help {
+		dlog.Printf("Showing help")
+		command.PrintDefaults()
+		os.Exit(0)
+	}
+
 	dlog.Printf("Building the workflow...")
 
 	// use go generate, along with custom build tools, to handle any auxiliary build steps
 	run("go", "generate")
 
-	if len(os.Args) > 2 && os.Args[2] == "-a" {
+	if *all {
 		run("go", "build", "-a", "-ldflags=\"-w\"", "-o", "workflow/"+workflowName)
 	} else {
 		run("go", "build", "-ldflags=\"-w\"", "-o", "workflow/"+workflowName)
