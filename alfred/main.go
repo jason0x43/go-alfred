@@ -18,7 +18,7 @@
 //
 // Usage:
 //
-//     alfred [command]
+//     alfred [command] [options]
 //
 // The available commands are:
 //
@@ -33,11 +33,11 @@
 // 	link
 // 		Link the "workflow" subdirectory into Alfred's preferences directory,
 // 		installing it.
-// 	pack
+// 	pack [outdir]
 // 		Package the workflow for distribution. This will create a file named
 // 		<filename>.alfredworkflow, where "filename" is the basename of the
 // 		workflow directory.
-// 	release
+// 	release [outdir]
 // 		Prepare the repo for release.
 // 	unlink
 // 		Unlink the "workflow" subdirectory from Alfred's preferences directory,
