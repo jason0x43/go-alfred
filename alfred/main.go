@@ -42,7 +42,6 @@
 // 	unlink
 // 		Unlink the "workflow" subdirectory from Alfred's preferences directory,
 // 		uninstalling it.
-
 package main
 
 import (
