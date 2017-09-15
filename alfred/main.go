@@ -67,17 +67,20 @@ var workflowsPath string
 var buildDir = "workflow"
 
 type command struct {
-	Name string
-	Help string
+	Name    string
+	Options string
+	Help    string
 }
 
 var commands = []command{
-	command{"build", "build the workflow executable (-a to rebuild libs)"},
-	command{"clean", "clean built files"},
-	command{"info", "display information about the current workflow"},
-	command{"link", "activate this workflow"},
-	command{"pack", "create a distributable package"},
-	command{"unlink", "deactivate this workflow"},
+	command{"build", "", "build the workflow executable (-a to rebuild libs)"},
+	command{"clean", "", "clean built files"},
+	command{"help", "", "display this help message"},
+	command{"info", "", "display information about the current workflow"},
+	command{"link", "", "activate this workflow"},
+	command{"pack", "[outdir]", "create a distributable package"},
+	command{"release", "[outdir]", "create a new release"},
+	command{"unlink", "", "deactivate this workflow"},
 }
 
 var dlog = log.New(os.Stderr, "[alfred] ", log.LstdFlags)
@@ -94,19 +97,7 @@ func main() {
 	dlog.Printf("workflows path: %s", workflowsPath)
 
 	if len(os.Args) == 1 {
-		println("usage:", os.Args[0], "<command>")
-		println()
-		println("command may be one of:")
-		for _, cmd := range commands {
-			fmt.Printf("    %-10s %s\n", cmd.Name, cmd.Help)
-		}
-		os.Exit(0)
-	}
-
-	if len(os.Args) == 2 && os.Args[1] == "-z" {
-		for _, cmd := range commands {
-			fmt.Printf("%s:%s\n", cmd.Name, cmd.Help)
-		}
+		help()
 		os.Exit(0)
 	}
 
@@ -284,6 +275,15 @@ func getExistingLink() (string, error) {
 	}
 
 	return "", nil
+}
+
+func help() {
+	println("usage:", os.Args[0], "<command> [options]")
+	println()
+	println("command may be one of:")
+	for _, cmd := range commands {
+		fmt.Printf("    %-18s %s\n", cmd.Name+" "+cmd.Options, cmd.Help)
+	}
 }
 
 func info() {
