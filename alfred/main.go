@@ -342,20 +342,61 @@ func link() {
 }
 
 func pack() {
-	dlog.Printf("Packing workflow...")
-	pwd, _ := filepath.Abs(".")
-	if err := os.Chdir(buildDir); err != nil {
-		panic(err)
+	command := flag.NewFlagSet("build", flag.ExitOnError)
+	help := command.Bool("h", false, "show this message")
+	outdir := command.String("o", "", "output directory")
+	command.Parse(os.Args[2:])
+
+	if *help {
+		dlog.Printf("Showing help")
+		command.PrintDefaults()
+		os.Exit(0)
 	}
-	zipfile := path.Join("..", zipName)
-	dlog.Printf("Creating archive %s", zipfile)
-	run("zip", "-r", zipfile, ".")
-	if err := os.Chdir(pwd); err != nil {
+
+	dlog.Printf("Packing workflow...")
+
+	if err := createArchive(*outdir); err != nil {
 		panic(err)
 	}
 }
 
+func createArchive(outdir string) error {
+	if outdir != "" {
+		outdir, _ = filepath.Abs(outdir)
+	} else {
+		outdir = ".."
+	}
+
+	pwd, _ := filepath.Abs(".")
+
+	if err := os.Chdir(buildDir); err != nil {
+		return err
+	}
+
+	zipfile := path.Join(outdir, zipName)
+	dlog.Printf("Creating archive %s", zipfile)
+	run("zip", "-r", zipfile, ".")
+
+	if err := os.Chdir(pwd); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func release() {
+	command := flag.NewFlagSet("build", flag.ExitOnError)
+	help := command.Bool("h", false, "show this message")
+	outdir := command.String("o", "", "output directory")
+	userVersion := command.String("v", "", "release version")
+	command.Parse(os.Args[2:])
+
+	if *help {
+		dlog.Printf("Showing help")
+		command.PrintDefaults()
+		os.Exit(0)
+	}
+
 	dlog.Printf("Releasing workflow...")
 	plistFile := path.Join("workflow", "info.plist")
 	dlog.Printf("Reading from plist file %s", plistFile)
@@ -363,8 +404,8 @@ func release() {
 	var version semver.Version
 	var releaseVersion string
 
-	if len(os.Args) > 2 {
-		version = *semver.MustParse(os.Args[2])
+	if *userVersion != "" {
+		version = *semver.MustParse(*userVersion)
 		releaseVersion = version.String()
 		dlog.Printf("Using user-provided version: %s", releaseVersion)
 	} else {
@@ -389,7 +430,10 @@ func release() {
 	dlog.Printf("Tagged release")
 	fmt.Printf("Packaging version %s\n", releaseVersion)
 	build()
-	pack()
+
+	if err := createArchive(*outdir); err != nil {
+		panic(err)
+	}
 
 	nextVer, _ := version.IncMinor().SetPrerelease("pre")
 	nextVersion := nextVer.String()
