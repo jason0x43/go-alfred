@@ -249,8 +249,13 @@ func build() {
 
 func clean() {
 	dlog.Printf("Cleaning the workflow...")
-	run("rm", "workflow/"+workflowName)
-	run("rm", zipName)
+	binFile := path.Join("workflow", workflowName)
+	if _, err := os.Stat(binFile); err == nil {
+		run("rm", binFile)
+	}
+	if _, err := os.Stat(zipName); err == nil {
+		run("rm", zipName)
+	}
 }
 
 func getExistingLink() (string, error) {
