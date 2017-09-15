@@ -125,6 +125,8 @@ func main() {
 		build()
 	case "clean":
 		clean()
+	case "help":
+		help()
 	case "info":
 		info()
 	case "link":
