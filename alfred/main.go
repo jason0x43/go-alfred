@@ -118,7 +118,24 @@ func main() {
 
 	workflowPath, _ = filepath.Abs(".")
 	workflowName = path.Base(workflowPath)
-	zipName = workflowName + ".alfredworkflow"
+
+	plistFile := path.Join("workflow", "info.plist")
+	versionTag := ""
+
+	fileExists := func(file string) bool {
+		stat, err := os.Stat(file)
+		return !os.IsNotExist(err) && !stat.IsDir()
+	}
+
+	if fileExists(plistFile) {
+		infoPlist := alfred.LoadPlist(plistFile)
+		workflowVersion := infoPlist["version"]
+		if workflowVersion != nil {
+			versionTag = fmt.Sprintf("-%s", workflowVersion)
+		}
+	}
+
+	zipName = fmt.Sprintf("%s%s.alfredworkflow", workflowName, versionTag)
 	dlog.Printf("zipName: %s", zipName)
 
 	switch os.Args[1] {
