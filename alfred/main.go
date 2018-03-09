@@ -253,9 +253,9 @@ func build() {
 	run("go", "generate")
 
 	if *all {
-		run("go", "build", "-a", "-ldflags=\"-w\"", "-o", "workflow/"+workflowName)
+		run("go", "build", "-a", "-ldflags=-w", "-o", "workflow/"+workflowName)
 	} else {
-		run("go", "build", "-ldflags=\"-w\"", "-o", "workflow/"+workflowName)
+		run("go", "build", "-ldflags=-w", "-o", "workflow/"+workflowName)
 	}
 }
 
