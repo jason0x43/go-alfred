@@ -102,11 +102,6 @@ func main() {
 		os.Exit(0)
 	}
 
-	dirExists := func(dir string) bool {
-		stat, err := os.Stat(dir)
-		return !os.IsNotExist(err) && stat.IsDir()
-	}
-
 	if !dirExists(path.Join("workflow")) {
 		dlog.Printf("Didn't see workflow/ in cwd, going up...")
 		os.Chdir("..")
@@ -121,11 +116,6 @@ func main() {
 
 	plistFile := path.Join("workflow", "info.plist")
 	versionTag := ""
-
-	fileExists := func(file string) bool {
-		stat, err := os.Stat(file)
-		return !os.IsNotExist(err) && !stat.IsDir()
-	}
 
 	if fileExists(plistFile) {
 		infoPlist := alfred.LoadPlist(plistFile)
@@ -308,6 +298,38 @@ func getExistingLink() (string, error) {
 	return "", nil
 }
 
+func getExistingInstall() (string, error) {
+	dir, err := os.Open(workflowsPath)
+	if err != nil {
+		return "", err
+	}
+	defer dir.Close()
+
+	plistFile := path.Join("workflow", "info.plist")
+	info := alfred.LoadPlist(plistFile)
+	id := info["bundleid"]
+
+	dirs, err := dir.Readdir(-1)
+	if err != nil {
+		return "", err
+	}
+
+	for _, d := range dirs {
+		infoFile := path.Join(dir.Name(), d.Name(), "info.plist")
+		if !fileExists(infoFile) {
+			continue
+		}
+
+		infoPlist := alfred.LoadPlist(infoFile)
+		workflowID := infoPlist["bundleid"]
+		if workflowID == id {
+			return d.Name(), nil
+		}
+	}
+
+	return "", nil
+}
+
 func help() {
 	println("usage:", os.Args[0], "<command> [options]")
 	println()
@@ -344,8 +366,22 @@ func link() {
 	}
 
 	if existing != "" {
-		println("existing link", filepath.Base(existing))
+		println("Existing link", filepath.Base(existing))
 		return
+	}
+
+	existing, err = getExistingInstall()
+	if err != nil {
+		panic(err)
+	}
+
+	if existing != "" {
+		plistFile := path.Join(workflowsPath, existing, "info.plist")
+		dlog.Printf("Reading from plist file %s", plistFile)
+		info := alfred.LoadPlist(plistFile)
+		info["disabled"] = true
+		alfred.SavePlist(plistFile, info)
+		println("disabled existing install at", existing)
 	}
 
 	uuidgen, _ := exec.Command("uuidgen").Output()
@@ -475,6 +511,18 @@ func unlink() {
 
 	run("rm", existing)
 	println("removed link", filepath.Base(existing))
+
+	if existing, err = getExistingInstall(); err != nil {
+		panic(err)
+	}
+
+	if existing != "" {
+		plistFile := path.Join(workflowsPath, existing, "info.plist")
+		info := alfred.LoadPlist(plistFile)
+		info["disabled"] = false
+		alfred.SavePlist(plistFile, info)
+		println("enabled existing install at", existing)
+	}
 }
 
 func copyFile(src, dst string) error {
@@ -517,4 +565,14 @@ func copyFiles(srcDir, dstDir string) error {
 	}
 
 	return nil
+}
+
+func dirExists(dir string) bool {
+	stat, err := os.Stat(dir)
+	return !os.IsNotExist(err) && stat.IsDir()
+}
+
+func fileExists(file string) bool {
+	stat, err := os.Stat(file)
+	return !os.IsNotExist(err) && !stat.IsDir()
 }
