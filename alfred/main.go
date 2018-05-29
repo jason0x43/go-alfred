@@ -569,10 +569,16 @@ func copyFiles(srcDir, dstDir string) error {
 
 func dirExists(dir string) bool {
 	stat, err := os.Stat(dir)
-	return !os.IsNotExist(err) && stat.IsDir()
+	if err != nil {
+		return os.IsExist(err)
+	}
+	return stat.IsDir()
 }
 
 func fileExists(file string) bool {
 	stat, err := os.Stat(file)
-	return !os.IsNotExist(err) && !stat.IsDir()
+	if err != nil {
+		return os.IsExist(err)
+	}
+	return !stat.IsDir()
 }
