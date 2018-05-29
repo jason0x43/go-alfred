@@ -199,7 +199,7 @@ func getPrefsDirectory() string {
 
 	var folder string
 
-	if preferences["syncfolder"] != "" {
+	if preferences["syncfolder"] != nil && preferences["syncfolder"] != "" {
 		folder = preferences["syncfolder"].(string)
 		if strings.HasPrefix(folder, "~/") {
 			folder = path.Join(currentUser.HomeDir, folder[2:])
