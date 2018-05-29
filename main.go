@@ -137,6 +137,11 @@ func init() {
 		if !fileExists(plFile) {
 			plFile = "info.plist"
 		}
+		if !fileExists(plFile) {
+			fmt.Println("alfred must be run in a workflow directory")
+			os.Exit(1)
+		}
+
 		plData := LoadPlist(plFile)
 		bundleID := plData["bundleid"].(string)
 		name := plData["name"].(string)
