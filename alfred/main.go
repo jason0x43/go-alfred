@@ -189,7 +189,7 @@ func getPrefsDirectory() string {
 
 	version := getAlfredVersion()
 	prefSuffix := ""
-	if version != "2" {
+	if version != "2" && version != "4" {
 		prefSuffix = "-" + version
 	}
 
