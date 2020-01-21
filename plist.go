@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 
-	plist "github.com/DHowett/go-plist"
+	"howett.net/plist"
 )
 
 // Plist is a plist data structure
