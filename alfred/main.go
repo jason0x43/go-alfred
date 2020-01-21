@@ -205,7 +205,11 @@ func getPrefsDirectory() string {
 			folder = path.Join(currentUser.HomeDir, folder[2:])
 		}
 	} else {
-		folder = path.Join(currentUser.HomeDir, "Library", "Application Support", "Alfred "+version)
+		if version != "4" {
+			folder = path.Join(currentUser.HomeDir, "Library", "Application Support", "Alfred "+version)
+		} else {
+			folder = path.Join(currentUser.HomeDir, "Library", "Application Support", "Alfred")
+		}
 	}
 
 	var info os.FileInfo
