@@ -74,14 +74,14 @@ type command struct {
 }
 
 var commands = []command{
-	command{"build", "", "build the workflow executable (-a to rebuild libs)"},
-	command{"clean", "", "clean built files"},
-	command{"help", "", "display this help message"},
-	command{"info", "", "display information about the current workflow"},
-	command{"link", "", "activate this workflow"},
-	command{"pack", "[outdir]", "create a distributable package"},
-	command{"release", "[outdir]", "create a new release"},
-	command{"unlink", "", "deactivate this workflow"},
+	{"build", "", "build the workflow executable (-a to rebuild libs)"},
+	{"clean", "", "clean built files"},
+	{"help", "", "display this help message"},
+	{"info", "", "display information about the current workflow"},
+	{"link", "", "activate this workflow"},
+	{"pack", "[outdir]", "create a distributable package"},
+	{"release", "[outdir]", "create a new release"},
+	{"unlink", "", "deactivate this workflow"},
 }
 
 var dlog = log.New(os.Stderr, "[alfred] ", log.LstdFlags)
@@ -242,7 +242,6 @@ func loadPreferences() (prefs alfred.Plist) {
 func build() {
 	command := flag.NewFlagSet("build", flag.ExitOnError)
 	help := command.Bool("h", false, "show this message")
-	all := command.Bool("a", false, "build all dependencies")
 	command.Parse(os.Args[2:])
 
 	if *help {
@@ -253,14 +252,34 @@ func build() {
 
 	dlog.Printf("Building the workflow...")
 
-	// use go generate, along with custom build tools, to handle any auxiliary build steps
+	// use go generate, along with custom build tools, to handle any auxiliary
+	// build steps
 	run("go", "generate")
 
-	if *all {
-		run("go", "build", "-a", "-ldflags=-w", "-o", "workflow/"+workflowName)
-	} else {
-		run("go", "build", "-ldflags=-w", "-o", "workflow/"+workflowName)
+	cmdAmd64 := exec.Command("go", "build", "-ldflags", "-s -w", "-o", workflowName+"_amd64")
+	cmdAmd64.Env = append(os.Environ(), "GOOS=darwin", "GOARCH=amd64")
+	if output, err := cmdAmd64.CombinedOutput(); err != nil {
+		println(string(output))
+		panic(err)
 	}
+	cmdArm64 := exec.Command("go", "build", "-ldflags", "-s -w", "-o", workflowName+"_arm64")
+	cmdArm64.Env = append(os.Environ(), "GOOS=darwin", "GOARCH=arm64")
+	if output, err := cmdArm64.CombinedOutput(); err != nil {
+		println(string(output))
+		panic(err)
+	}
+
+	run(
+		"lipo",
+		"-create",
+		"-output",
+		"workflow/"+workflowName,
+		workflowName+"_amd64",
+		workflowName+"_arm64",
+	)
+
+	run("rm", workflowName + "_amd64")
+	run("rm", workflowName + "_arm64")
 }
 
 func clean() {
