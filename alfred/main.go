@@ -189,7 +189,7 @@ func getPrefsDirectory() string {
 
 	version := getAlfredVersion()
 	prefSuffix := ""
-	if version != "2" && version != "4" {
+	if version != "2" && version != "4" && version != "5" {
 		prefSuffix = "-" + version
 	}
 
@@ -278,8 +278,8 @@ func build() {
 		workflowName+"_arm64",
 	)
 
-	run("rm", workflowName + "_amd64")
-	run("rm", workflowName + "_arm64")
+	run("rm", workflowName+"_amd64")
+	run("rm", workflowName+"_arm64")
 }
 
 func clean() {
