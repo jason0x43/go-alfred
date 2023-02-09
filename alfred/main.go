@@ -4,44 +4,44 @@
 // "workflow" subdirectory. The basename of the workflow directory is the
 // workflow's filename. A typical layout would look like:
 //
-// 	my-workflow/
-// 		README.md
-// 		LICENSE.txt
-// 		main.go
-// 		workflow/
-// 			info.plist
-// 			icon.png
+//	my-workflow/
+//		README.md
+//		LICENSE.txt
+//		main.go
+//		workflow/
+//			info.plist
+//			icon.png
 //
 // Installation:
 //
-// 	go install github.com/jason0x43/go-alfred/alfred
+//	go install github.com/jason0x43/go-alfred/alfred
 //
 // Usage:
 //
-//     alfred [command] [options]
+//	alfred [command] [options]
 //
 // The available commands are:
 //
-// 	build
-// 		Build the workflow executable and output it into the "workflow"
-// 		subdirectory.
-// 	clean
-// 		Delete the compiled workflow executable and the workflow distributable
-// 		package.
-// 	info
-// 		Display information about the workflow.
-// 	link
-// 		Link the "workflow" subdirectory into Alfred's preferences directory,
-// 		installing it.
-// 	pack [outdir]
-// 		Package the workflow for distribution. This will create a file named
-// 		<filename>.alfredworkflow, where "filename" is the basename of the
-// 		workflow directory.
-// 	release [outdir]
-// 		Prepare the repo for release.
-// 	unlink
-// 		Unlink the "workflow" subdirectory from Alfred's preferences directory,
-// 		uninstalling it.
+//	build
+//		Build the workflow executable and output it into the "workflow"
+//		subdirectory.
+//	clean
+//		Delete the compiled workflow executable and the workflow distributable
+//		package.
+//	info
+//		Display information about the workflow.
+//	link
+//		Link the "workflow" subdirectory into Alfred's preferences directory,
+//		installing it.
+//	pack [outdir]
+//		Package the workflow for distribution. This will create a file named
+//		<filename>.alfredworkflow, where "filename" is the basename of the
+//		workflow directory.
+//	release [outdir]
+//		Prepare the repo for release.
+//	unlink
+//		Unlink the "workflow" subdirectory from Alfred's preferences directory,
+//		uninstalling it.
 package main
 
 import (
@@ -205,10 +205,9 @@ func getPrefsDirectory() string {
 			folder = path.Join(currentUser.HomeDir, folder[2:])
 		}
 	} else {
-		if version != "4" {
+		folder = path.Join(currentUser.HomeDir, "Library", "Application Support", "Alfred")
+		if !dirExists(folder) {
 			folder = path.Join(currentUser.HomeDir, "Library", "Application Support", "Alfred "+version)
-		} else {
-			folder = path.Join(currentUser.HomeDir, "Library", "Application Support", "Alfred")
 		}
 	}
 
