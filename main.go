@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"os"
@@ -123,7 +124,7 @@ func TrimAllLeft(parts []string) []string {
 func init() {
 	if !IsDebugging() {
 		// If a debugging panel isn't open, disable logging
-		dlog.SetOutput(ioutil.Discard)
+		dlog.SetOutput(io.Discard)
 		dlog.SetFlags(0)
 	}
 
@@ -151,7 +152,7 @@ func init() {
 
 		dlog.Printf("Looking for app in /Applications")
 		var version string
-		files, _ := ioutil.ReadDir("/Applications")
+		files, _ := os.ReadDir("/Applications")
 		matcher := regexp.MustCompile(`Alfred( \d+)?.app`)
 		var appname string
 		for _, file := range files {

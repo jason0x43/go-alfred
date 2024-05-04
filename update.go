@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 	"sort"
@@ -76,7 +76,7 @@ func get(requestURL string, params map[string]string) (data []byte, err error) {
 	}
 	defer resp.Body.Close()
 
-	if data, err = ioutil.ReadAll(resp.Body); err != nil {
+	if data, err = io.ReadAll(resp.Body); err != nil {
 		return
 	}
 

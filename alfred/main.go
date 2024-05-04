@@ -48,7 +48,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
@@ -88,7 +87,7 @@ var dlog = log.New(os.Stderr, "[alfred] ", log.LstdFlags)
 
 func main() {
 	if os.Getenv("alfred_debug") != "1" {
-		dlog.SetOutput(ioutil.Discard)
+		dlog.SetOutput(io.Discard)
 		dlog.SetFlags(0)
 	}
 
@@ -152,7 +151,7 @@ func main() {
 
 // getAlfredVersion returns the highest installed version of Alfred. It uses a very naive algorithm.
 func getAlfredVersion() string {
-	files, _ := ioutil.ReadDir("/Applications")
+	files, _ := os.ReadDir("/Applications")
 	name := ""
 	for _, file := range files {
 		fname := file.Name()
@@ -210,6 +209,8 @@ func getPrefsDirectory() string {
 			folder = path.Join(currentUser.HomeDir, "Library", "Application Support", "Alfred "+version)
 		}
 	}
+
+	dlog.Printf("App support folder: %s", folder)
 
 	var info os.FileInfo
 	var err error
@@ -565,7 +566,7 @@ func copyFile(src, dst string) error {
 }
 
 func copyFiles(srcDir, dstDir string) error {
-	entries, err := ioutil.ReadDir(srcDir)
+	entries, err := os.ReadDir(srcDir)
 	if err != nil {
 		return err
 	}
