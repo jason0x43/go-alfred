@@ -2,7 +2,7 @@ package alfred
 
 import (
 	"fmt"
-	"io/ioutil"
+	"os"
 
 	"howett.net/plist"
 )
@@ -14,7 +14,7 @@ type Plist map[string]interface{}
 func LoadPlist(filename string) (p Plist) {
 	var err error
 	var xmlData []byte
-	if xmlData, err = ioutil.ReadFile(filename); err != nil {
+	if xmlData, err = os.ReadFile(filename); err != nil {
 		panic(fmt.Errorf("error reading plist file: %s", err))
 	}
 
@@ -33,7 +33,7 @@ func SavePlist(filename string, p Plist) {
 		panic(fmt.Errorf("error serializing plist data: %s", err))
 	}
 
-	if err = ioutil.WriteFile(filename, xmlData, 0644); err != nil {
+	if err = os.WriteFile(filename, xmlData, 0644); err != nil {
 		panic(err)
 	}
 }
